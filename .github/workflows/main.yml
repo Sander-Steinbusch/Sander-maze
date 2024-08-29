@@ -1,0 +1,48 @@
+name: Main
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: main
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    uses: ./.github/workflows/python.yml
+    secrets:
+      azure-cognitive-service-key: ${{ secrets.AZURE_COGNITIVE_SERVICE_KEY }}
+      openai-api-key: ${{ secrets.AZURE_OPEN_AI_SERVICE_KEY }}
+
+  docker:
+    needs: python
+    uses: ./.github/workflows/docker.yml
+    with:
+      image-name: ${{ github.event.repository.name }}
+      tags: "[ 'latest', '${{ github.sha }}' ]"
+      target: ${{ vars.TARGET }}
+    secrets:
+      docker-registry-username: ${{ secrets.HARBOR_USERNAME }}
+      docker-registry-password: ${{ secrets.HARBOR_PASSWORD }}
+
+  sonar:
+    needs: python
+    uses: ./.github/workflows/sonar.yml
+    with:
+      project: ${{ github.event.repository.name }}
+      source-directory: document_analyzer/
+    secrets:
+      token: ${{ secrets.SONAR_TOKEN }}
+
+  doks:
+    needs: [python, docker]
+    uses: ./.github/workflows/doks.yml
+    with:
+      deployment: ${{ github.event.repository.name }}
+      namespace: cvapp
+    secrets:
+      access-token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}

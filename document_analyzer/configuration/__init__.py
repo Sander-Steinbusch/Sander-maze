@@ -1,0 +1,2 @@
+from document_analyzer.configuration.configuration import get_configuration
+from document_analyzer.configuration.arguments import get_arguments

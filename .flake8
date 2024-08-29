@@ -1,0 +1,10 @@
+# Reference: https://flake8.pycqa.org/en/latest/user/configuration.html
+
+[flake8]
+exclude = .git,__pycache__,.venv,venv
+extend-ignore = E203, E501
+max-line-length = 80
+per-file-ignores =
+    # imported but unused
+    __init__.py: F401
+select = C, E, F, W, B, B950

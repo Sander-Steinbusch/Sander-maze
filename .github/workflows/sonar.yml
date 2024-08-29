@@ -1,0 +1,57 @@
+on:
+  workflow_call:
+    inputs:
+      coverage-report:
+        required: false
+        type: string
+        default: coverage.xml
+      host-url:
+        required: false
+        type: string
+        default: https://sonar.jidoka-apps.be/
+      project:
+        required: true
+        type: string
+      source-directory:
+        required: true
+        type: string
+      test-directory:
+        required: false
+        type: string
+        default: tests/
+    secrets:
+      token:
+        required: true
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    if: ${{ github.actor != 'dependabot[bot]' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download Coverage
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage
+
+      - name: Check required modules file exists
+        id: required-modules
+        uses: andstor/file-existence-action@v3
+        with:
+          files: requirements.txt
+
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.token }}
+          SONAR_HOST_URL: ${{ inputs.host-url }}
+        with:
+          args: >
+            -Dsonar.projectKey=${{ inputs.project }}
+            -Dsonar.python.coverage.reportPaths=${{ inputs.coverage-report }}
+            -Dsonar.sources=${{ inputs.source-directory }}
+            -Dsonar.tests=${{ inputs.test-directory }}

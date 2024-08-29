@@ -1,0 +1,44 @@
+on:
+  workflow_call:
+    inputs:
+      cluster-name:
+        required: false
+        type: string
+        default: jdk-do-test-env
+      deployment:
+        required: true
+        type: string
+      namespace:
+        required: true
+        type: string
+    secrets:
+      access-token:
+        required: true
+
+jobs:
+  deploy:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.access-token }}
+
+      - name: Save DigitalOcean kubeconfig with short-lived credentials
+        run: doctl kubernetes cluster kubeconfig save --expiry-seconds 600 ${{ inputs.cluster-name }}
+
+      - name: Get replicas of deployment
+        id: current-deployment
+        run: echo "replicas=$(kubectl get deployment ${{ inputs.deployment }} --namespace ${{ inputs.namespace }} -o=jsonpath='{.status.replicas}')" >> $GITHUB_OUTPUT
+
+      - name: Scale replicas down (to 0)
+        run: kubectl scale deployment ${{ inputs.deployment }} --namespace ${{ inputs.namespace }} --replicas=0
+
+      - name: Sleep for 30 seconds
+        run: sleep 30s
+        shell: bash
+
+      - name: Scale replicas up
+        run: kubectl scale deployment ${{ inputs.deployment }} --namespace ${{ inputs.namespace }} --replicas=${{ steps.current-deployment.outputs.replicas }}

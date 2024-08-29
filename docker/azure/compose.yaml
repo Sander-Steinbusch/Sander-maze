@@ -1,0 +1,11 @@
+services:
+  server:
+    build:
+      context: ../../
+      target: azure
+    container_name: document-analyser
+    platform: linux/amd64
+    ports:
+      - 5005:8080
+    env_file:
+      - .azure

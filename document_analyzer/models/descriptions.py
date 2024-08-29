@@ -1,0 +1,7 @@
+basis = "General information of the invoice."
+totaalIncl = "total amount issued including taxes of the offer whitout the currency symbol."
+munteenheid = "the currency in which all the prices are issued."
+offertenummer = "a unique identifier or reference for the quotation."
+offerteDatum = "the date at which the quotation was issued or sent."
+lijnitems = "List of ordered, supplied, delivered or picked up goods or services."
+raw= "the full received text. No alterations additions or exclusions are done to this."

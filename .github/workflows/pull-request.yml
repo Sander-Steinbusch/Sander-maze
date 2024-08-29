@@ -1,0 +1,23 @@
+name: Pull Request
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    uses: ./.github/workflows/python.yml
+    secrets:
+      azure-cognitive-service-key: ${{ secrets.AZURE_COGNITIVE_SERVICE_KEY }}
+      openai-api-key: ${{ secrets.AZURE_OPEN_AI_SERVICE_KEY }}
+
+  sonar:
+    needs: python
+    uses: ./.github/workflows/sonar.yml
+    with:
+      project: ${{ github.event.repository.name }}
+      source-directory: document_analyzer/
+    secrets:
+      token: ${{ secrets.SONAR_TOKEN }}
