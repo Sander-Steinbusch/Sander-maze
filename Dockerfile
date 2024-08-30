@@ -70,7 +70,7 @@ ARG AZURE_COGS_KEY
 ARG OPENAI_API_KEY
 
 # Expose the port that the application listens on.
-EXPOSE 8080
+EXPOSE 8000
 
 # Run the application.
 CMD python run_server.py
