@@ -1,119 +1,53 @@
 def get_test_data():
     return {
-        "firstName": "John", 
-        "lastName": "Doe", 
-        "jobTitle": "Software Engineer", 
-        "contactInformation": {
-            "emailAddress": "johndoe@email.com", 
-            "mobile": "+1 123-456-7890", 
-            "linkedInAccount": "https://www.linkedin.com/in/johndoe/", 
-            "twitterAccount": "https://twitter.com/johndoe", 
-        }, 
-        "location": "San Francisco", 
-        "dateOfBirth": "1990-01-01", 
-        "aboutMe": "I am a software engineer with 5 years of experience in developing web applications using Java and JavaScript.", 
-        "hobbies": [
-            "Reading", 
-            "Hiking"
-        ], 
-        "languages": [
-            {
-                "name": "English", 
-                "score": 5
-            }, 
-            {
-                "name": "Spanish", 
-                "score": 3
-            }
-        ], 
-        "education": [
-            {
-                "name": "Computer Science", 
-                "institute": {
-                    "name": "University of California, Berkeley"
-                }, 
-                "startYear": 2010, 
-                "endYear": 2014
-            }
-        ], 
-        "training": [
-            {
-                "name": "React Native", 
-                "institute": { 
-                    "name": "Udemy"
-                }, 
-                "year": 2018
-            }
-        ], 
-        "certificates": [
-            {
-                "name": "Oracle Certified Java Developer", 
-                "institute": {
-                    "name": "Oracle"
-                }, 
-                "year": 2015
-            }
-        ], 
-        "skills": [
-            {
-                "name": "Java", 
-                "score": 5
-            },
-            {
-                "name": "JavaScript", 
-                "score": 4
-            },
-            {
-                "name": "React", 
-                "score": 3
-            }
-        ], 
-        "consultancyAssignments": [
-            {
-                "project": {
-                    "name": "Software Engineer", 
-                    "customer": {
-                        "name": "Google"
-                    }
-                },
-                "startedOn": "2015-01-01", 
-                "stoppedOn": "2017-12-31", 
-                "description": "Developed web applications using Java and JavaScript.", 
-                "roles": [
-                    "Developer", 
-                    "Team Lead"
-                ], 
-                "skills": [
-                    "Java", 
-                    "JavaScript", 
-                    "Agile Methodology"
-                ]
-            }, 
-            {
-                "project": {
-                    "name": "Software Engineer", 
-                    "customer": {
-                        "name": "Facebook"
-                    }
-                },
-                "startedOn": "2018-01-01", 
-                "stoppedOn": None, 
-                "description": "Developing web applications using React and Node.js.", 
-                "roles": [
-                    "Developer"
-                ], 
-                "skills": [
-                    "React", 
-                    "Node.js", 
-                    "GraphQL"
-                ]
-            }
-        ], 
-        "books": [
-            {
-                "title": "Clean Code", 
-                "author": "Robert C. Martin", 
-                "publishingYear": 2008
-            }
-        ]
-    }
+    "basis": [
+        {
+            "auteur": "PRINDAL-HOUT BV PALENBEDRIJF TUINHOUT",
+            "datum": "16-10-2023",
+            "documentNummer": "",
+            "typeDocument": "OFFERTE",
+            "leveringsconditie": "BETALING: 30 DAGEN FACTUURDATUM"
+        }
+    ],
+    "totaalIncl": "23.636,62",
+    "munteenheid": "EUR",
+    "lijnitems": [
+        {
+            "omschrijving": "L:3 meter dia 20 centimeter",
+            "extraInfo": "Ronde naaldhouten palen - brut met schors - niet ontschorst onbewerkt - onbehandeld - los. Ronde naaldhouten palen zijn ruwe houten palen met schors, niet ontschorst en onbehandeld. Ze worden los geleverd.",
+            "aantal": "11",
+            "eenheid": "stuk",
+            "prijs": "19,10",
+            "korting": "",
+            "prijsKorting": ""
+        },
+        {
+            "omschrijving": "L:4 meter dia 20 centimeter",
+            "extraInfo": "Ronde naaldhouten palen - brut met schors - niet ontschorst onbewerkt - onbehandeld - los. Ronde naaldhouten palen zijn ruwe houten palen met schors, niet ontschorst en onbehandeld. Ze worden los geleverd.",
+            "aantal": "450",
+            "eenheid": "stuk",
+            "prijs": "25,00",
+            "korting": "",
+            "prijsKorting": ""
+        },
+        {
+            "omschrijving": "L:5 meter dia 20 centimeter",
+            "extraInfo": "Ronde naaldhouten palen - brut met schors - niet ontschorst onbewerkt - onbehandeld - los. Ronde naaldhouten palen zijn ruwe houten palen met schors, niet ontschorst en onbehandeld. Ze worden los geleverd.",
+            "aantal": "75",
+            "eenheid": "stuk",
+            "prijs": "29,20",
+            "korting": "",
+            "prijsKorting": ""
+        },
+        {
+            "omschrijving": "L:7 meter dia 20 centimeter",
+            "extraInfo": "Ronde naaldhouten palen - brut met schors - niet ontschorst onbewerkt - onbehandeld - los. Ronde naaldhouten palen zijn ruwe houten palen met schors, niet ontschorst en onbehandeld. Ze worden los geleverd.",
+            "aantal": "190",
+            "eenheid": "stuk",
+            "prijs": "30,97",
+            "korting": "",
+            "prijsKorting": ""
+        }
+    ],
+    "rawOutput": "PRINDAL-HOUT BV OFFERTE PALENBEDRIJF - TUINHOUT PEYENBEEK 4 B-9400 NINOVE - DENDERWINDEKE H WWW.PRINDALHOUT.COM Stadsbader NV Kanaalstraat 14 8530 harelbeke BE0407 975 466 Klantnr: 870 Denderwindeke, 16/10/2023 Artikel Code Omschrijving Aantal Eenheidspr ijs Korting % Prijs BTW % Totaal 0 Ronde naaldhouten palen - brut met schors - niet ontschorst onbewerkt - 0 € 0 - € 0 - 0 onbehandeld - los 0 - € 0 - € 0 0 L:3m00 dia 20cm 11 19,10 € 0 19,10 € 21 210,10 € 0 L:4m00 dia 20cm 450 25,00 € 0 25,00 € 21 11.250,00 € 0 L:5m00 dia 20cm 75 29,20 € 0 29,20 € 21 2.190,00 € 0 L:7m00 dia 20cm 190 30,97 € 0 30,97 € 21 5.884,30 € SUB TOTAAL 19.534,40 € BTW 0% - € 6% - € 21% 4.102,22 € TOTAAL TE BETALEN (incl. BTW) 23.636,62 € BETALING: 30 DAGEN FACTUURDATUM OPMERKING / REMARQUE: Betreft : Gent R40 - Algemene verkoopsvoorwaarden in bijlage. Contactpersoon: Peter.devos@stadsbader.com TEL: 054 33 10 16 - FAX: 054 32 48 51 - EMAIL: INFO@PRINDALHOUT.COM BTW-TVA BE 0418.995.260 - HR-RC 49.012 AALST BNP PARIBAS-FORTIS IBAN BE06 2930 1405 2022 - BIC GEBA BE BB - KBC BE07 4340 0201 4166 BIC KRED BE BB"
+}

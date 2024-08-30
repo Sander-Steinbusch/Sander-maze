@@ -1,6 +1,6 @@
 from unittest.mock import Mock, patch, mock_open
 from pytest import fixture
-from azure.ai.formrecognizer import DocumentAnalysisClient
+from azure.ai.documentintelligence import DocumentIntelligenceClient
 from document_analyzer.tools.custom.model import CustomTextExtractorTool
 
 
@@ -11,7 +11,7 @@ class TestGivenCustomTextExtractorToolWhenRun:
         poller = Mock()
         poller.result = Mock(return_value=analyze_result_with_styles_null)
 
-        document_analysis_client = Mock(DocumentAnalysisClient)
+        document_analysis_client = Mock(DocumentIntelligenceClient)
         document_analysis_client.begin_analyze_document = Mock(return_value=poller)
 
         return document_analysis_client
@@ -26,7 +26,7 @@ class TestGivenCustomTextExtractorToolWhenRun:
         _ = system_under_test.run("document_name.pdf")
 
         document_analysis_client.begin_analyze_document.assert_called_with(
-            model_id="prebuilt-document", document=mock_file(), features=["styleFont"]
+            model_id="prebuilt-invoice", analyze_request=mock_file(), content_type="application/octet-stream"
         )
 
     def test_then_file_is_opened(self, mock_file, system_under_test):

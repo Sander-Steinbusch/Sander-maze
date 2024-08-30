@@ -6,7 +6,7 @@ from document_analyzer.persistence.file_storage import Document
 from os.path import exists
 from pytest import fixture
 
-FILENAME = "resume.pdf"
+FILENAME = "invoice.pdf"
 FILE_LOCATION = os.path.join("documents", FILENAME)
 
 
