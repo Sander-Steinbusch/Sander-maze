@@ -15,6 +15,6 @@ class BasisInfo(BaseModel):
         description="Type of invoice. usually called offerte or factuur"
     )
     leveringsconditie: str = Field(
-        description="conditions and information partaining the delivery of goods and/or service."
+        description="conditions and information pertaining the delivery of goods and/or service."
     )
     

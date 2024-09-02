@@ -17,10 +17,9 @@ class CustomTextExtractorTool(Runnable[str, str]):
 	def __init__(self, document_intelligence_client):
 		self.document_intelligence_client = document_intelligence_client
 
-	def run(self, document) -> str:
+	def run(self, document) -> AnalyzeResult:
 		analyze_result = self.analyze_document(document)
-		print(analyze_result)
-		#return " \n".join(grouped_content)
+
 		return analyze_result
 
 	def analyze_document(self, document_path) -> AnalyzeResult:
