@@ -1,6 +1,7 @@
 from werkzeug.utils import secure_filename
 from os import path, remove
 
+
 class Document(object):
     def __init__(self, request_file):
         self.request_file = request_file

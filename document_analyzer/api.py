@@ -16,3 +16,12 @@ def doc():
         result_dict = parse_offerte_file(document.filename, model, ocr)
 
     return build_json_response(result_dict)
+
+@api.route("/", methods=["GET"])
+def hello():
+   return '''<html>
+   <head><title>My first Python CGI app</title></head>
+   <body>
+   <p>Hello, 'world'!</p>
+   </body>
+   </html>'''
