@@ -73,4 +73,4 @@ ARG OPENAI_API_KEY
 EXPOSE 8000
 
 # Run the application.
-CMD python run_server.py
+CMD python app.py

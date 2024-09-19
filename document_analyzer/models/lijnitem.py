@@ -51,3 +51,10 @@ class Lijnitem(BaseModel):
             "if the calculated number is the same as the price, return an empty string here."
         )    
     )
+    hoofdstuk: str = Field(
+        description=(
+            "match the omschrijving with the best possible line found at this webpage: https://sander-maze-ecdre7cdhdbthkbk.westeurope-01.azurewebsites.net/hoofdstuk"
+            "Return the complete line"
+            "for example: 11-11 : Beheer van graslanden, wegbermen en grasmatten"
+        )
+    )
