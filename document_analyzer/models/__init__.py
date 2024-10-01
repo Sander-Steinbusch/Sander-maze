@@ -1,7 +1,7 @@
-from document_analyzer.models.lijnitem import Lijnitem
+from document_analyzer.models.lineitem import LineItem
 from document_analyzer.models.basisInfo import BasisInfo
 
 __all__ = [
-    "Lijnitem",
+    "LineItem",
     "BasisInfo"
 ]

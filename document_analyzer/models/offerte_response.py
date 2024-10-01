@@ -3,7 +3,7 @@ from typing import List
 
 from document_analyzer.models import (
     BasisInfo,
-    Lijnitem,
+    LineItem,
     descriptions
 )
 
@@ -12,14 +12,11 @@ class Offerte(BaseModel):
         description=descriptions.basis
     )
     totaalIncl: str = Field(
-        description=descriptions.totaalIncl
+        description=descriptions.total
     )
-    munteenheid: str = Field(
-        description=descriptions.munteenheid
+    currency: str = Field(
+        description=descriptions.currency
     )
-    lijnitems: List[Lijnitem] = Field(
-        description=descriptions.lijnitems
-    )
-    rawOutput: str = Field(
-        description=descriptions.raw
+    lineItems: List[LineItem] = Field(
+        description=descriptions.items
     )

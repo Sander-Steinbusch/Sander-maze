@@ -1,7 +1,7 @@
 from langchain.pydantic_v1 import BaseModel, Field
 
-class Lijnitem(BaseModel):
-    omschrijving: str = Field(
+class LineItem(BaseModel):
+    description: str = Field(
         description=(
             "description of a good and/or a service provided by the company."
             "this can span multiple lines."
@@ -12,21 +12,24 @@ class Lijnitem(BaseModel):
     )
     extraInfo: str = Field(
         description=(
-            "additional info about the good and/or service provided by the company."
+            "additional info about the good and/or service described in omschrijving."
             "Often in a separate line, area or table cell."
             "Sometimes this is placed between brackets or parenthesis after the initial description."
+            "Delivery details have to be left out."
+            "Additionally, please look up the description of each lijnitem, with reference to the author of the document."
+            "Add a summary, in Dutch, of any extra information you can find on a new sentence"
         )
     )
-    aantal: str = Field(
+    quantity: str = Field(
         description=(
             "the quantity of the good and/or service provided by the company."
             "Often called: aantal or hoeveelheid."
         )
     )
-    eenheid: str = Field(
+    unit: str = Field(
         description="the unit of measure of the good and/or service provided by the company."
     )
-    prijs: str = Field(
+    price: str = Field(
         description=(
             "the unit price of the good and/or service provided by the company."
             "this can be the same as the total amount when the quantity of the good is one."
@@ -35,13 +38,13 @@ class Lijnitem(BaseModel):
             "The thousands separator is always a dot, and need to be replaced by a dot when it isn't."
         )
     )
-    korting: str = Field(
+    reduction: str = Field(
         description=(
             "A reduction, usually in the form of a percentage."
-            "If there is none to be found, or if it's o, return an empty string."
+            "If there is none to be found, or if it's 0, return an empty string."
         )
     )
-    prijsKorting: str = Field(
+    priceReduction: str = Field(
         description=(
             "the unit price of the good and/or service provided by the company."
             "reduced with the reduction found in the document."
@@ -51,10 +54,6 @@ class Lijnitem(BaseModel):
             "if the calculated number is the same as the price, return an empty string here."
         )    
     )
-    hoofdstuk: str = Field(
-        description=(
-            "match the omschrijving with the best possible line found at this webpage: https://sander-maze-ecdre7cdhdbthkbk.westeurope-01.azurewebsites.net/hoofdstuk"
-            "Return the complete line"
-            "for example: 11-11 : Beheer van graslanden, wegbermen en grasmatten"
-        )
+    chapter: str = Field(
+        description= "geef het hoofdstuk en subhoofdstuk van het standaardbestek van België dat het beste past per gevonden lineitem."
     )
