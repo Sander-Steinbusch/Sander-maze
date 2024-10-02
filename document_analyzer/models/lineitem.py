@@ -15,9 +15,8 @@ class LineItem(BaseModel):
             "additional info about the good and/or service described in omschrijving."
             "Often in a separate line, area or table cell."
             "Sometimes this is placed between brackets or parenthesis after the initial description."
-            "Delivery details have to be left out."
-            "Additionally, please look up the description of each lijnitem, with reference to the author of the document."
-            "Add a summary, in Dutch, of any extra information you can find on a new sentence"
+            "Don't include delivery details."
+            "If you don't find anything leave this empty"
         )
     )
     quantity: str = Field(
