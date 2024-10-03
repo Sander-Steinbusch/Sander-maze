@@ -25,7 +25,7 @@ def build_prompt(data_model: Type[BaseModel]) -> PromptTemplate:
 		"{document} \n"
 		"{output_structure} \n"
 		"Do not add any fields to the response that are not in the specified structure. \n"
-		"Whenever a description of a lineItem is exactly the same, merge them and add up the numbers in quantity"
+		"Whenever a description and the price of a lineItem are exactly the same, merge them and add up the numbers in quantity"
 		"Please look up the description of each lijnitem, with reference to the author inside basis. \n"
 		"Add a summary, in Dutch, of any extra information you can find on a new sentence after the text within the extraInfo block. \n"
 	)
