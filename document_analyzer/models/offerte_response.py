@@ -4,18 +4,18 @@ from typing import List
 from document_analyzer.models import (
     BasisInfo,
     LineItem,
-    descriptions
+    descriptions,
 )
 
 class Offerte(BaseModel):
     basis: List[BasisInfo] = Field(
         description=descriptions.basis
     )
-    totaalIncl: str = Field(
-        description=descriptions.total
-    )
     currency: str = Field(
         description=descriptions.currency
+    )
+    totalCount:int = Field(
+        description=descriptions.totalCount
     )
     lineItems: List[LineItem] = Field(
         description=descriptions.items

@@ -24,7 +24,7 @@ class CustomTextExtractorTool(Runnable[str, str]):
 	def analyze_document(self, document_path) -> str:
 		with open(document_path, "rb") as document:
 			poller = self.document_intelligence_client.begin_analyze_document(
-				"prebuilt-invoice", analyze_request=document, content_type="application/octet-stream"
+				"prebuilt-read", analyze_request=document, content_type="application/octet-stream"
 			)
 		return poller.result().content
 

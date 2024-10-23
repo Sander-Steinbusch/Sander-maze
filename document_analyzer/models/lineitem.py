@@ -33,8 +33,6 @@ class LineItem(BaseModel):
             "the unit price of the good and/or service provided by the company."
             "this can be the same as the total amount when the quantity of the good is one."
             "usually called: eenheidsprijs, eenh. prijs, unit price, eenh. pr."
-            "The decimal sign is always a comma, and needs to be replaced by a comma when it isn't."
-            "The thousands separator is always a dot, and need to be replaced by a dot when it isn't."
         )
     )
     reduction: str = Field(
@@ -53,6 +51,18 @@ class LineItem(BaseModel):
             "if the calculated number is the same as the price, return an empty string here."
         )    
     )
+    delivery: str = Field(
+        description=(
+            "conditions pertaining the delivery of goods and/or service."
+            "these are often not directly written in the document but have to be distilled from the delivery information"
+            "Please assess which of the following options is most likely for the given document. "
+            "Levering op de werf"
+            "Niet van toepassing"
+            "Af fabriek - transport ten laste van de koper"
+            "Levering op de werf"
+            "Onbekend"
+        )
+    )
     chapter: str = Field(
-        description= "geef het hoofdstuk en subhoofdstuk van het standaardbestek van België dat het beste past per gevonden lineitem."
+        description= "empty field"
     )

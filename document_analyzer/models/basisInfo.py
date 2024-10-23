@@ -14,16 +14,3 @@ class BasisInfo(BaseModel):
     documentType: str = Field(
         description="Type of invoice. usually called offerte or factuur"
     )
-    delivery: str = Field(
-        description=(
-            "conditions pertaining the delivery of goods and/or service."
-            "these are often not directly written in the document but have to be distilled from the delivery information"
-            "Please asses which of the following options is most likely for the given document. "
-            "Levering op de werf"
-            "Niet van toepassing"
-            "Af fabriek - transport ten laste van de koper"
-            "Levering op de werf"
-            "Onbekend"
-                     )
-    )
-    
