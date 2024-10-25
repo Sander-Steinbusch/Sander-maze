@@ -15,9 +15,10 @@ def build_prompt_arguments(text: str) -> dict:
 def build_prompt(data_model: Type[BaseModel]) -> PromptTemplate:
     template = (
         # persona
-        "You are an invoice and offer parser in the field of construction works."
+        "you are a"
         "The main goal is to extract pricing information. These need to be complete and include at least a description, "
         "unit price and a unit of measure. Don't add an item if it's incomplete."
+        "The name of the item can be in front or after the pricing."
         "These items can be exact duplicates, still add all of them."
         "Return all dates in the unified format 'DD-MM-YYYY'."
         "Return all numbers in a Belgian number format."

@@ -12,8 +12,8 @@ class LineItem(BaseModel):
     )
     extraInfo: str = Field(
         description=(
-            "additional info about the good and/or service described in omschrijving."
-            "Often in a separate line, area or table cell."
+            "additional info about the good and/or service."
+            "Often on a separate line. Or in a separate area or table cell."
             "Sometimes this is placed between brackets or parenthesis after the initial description."
             "Don't include delivery details."
             "If you don't find anything leave this empty"
