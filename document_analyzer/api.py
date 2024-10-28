@@ -1,6 +1,6 @@
 from flask import request, Flask, render_template, Response
 from document_analyzer.analyzers.offerte import parse_offerte_file
-from document_analyzer.analyzers.document import parse_prompt
+from document_analyzer.analyzers.document import parse_extraction_prompt, parse_enrich_abbr
 from document_analyzer.chat_models.azure import init_azure_chat
 from document_analyzer.responses.json_response import build_json_response
 from document_analyzer.persistence.file_storage import Document
@@ -29,11 +29,11 @@ def prompt():
         raise HTTPException('no documents added', Response("no file uploaded", status=400))
     with Document(request.files["file"]) as document:
         ocr = init_custom_ocr_tool()
-        model = init_azure_chat()
+        chat_model = init_azure_chat()
 
-        result_dict = parse_prompt(document.filename, model, ocr)
-
-    return result_dict.content
+        result_extraction = parse_extraction_prompt(document.filename, chat_model, ocr)
+        result_extraction_enrich_abbr = parse_enrich_abbr(result_extraction.content, chat_model)
+    return result_extraction_enrich_abbr.content
 
 
 @api.route("/", methods=["GET"])
