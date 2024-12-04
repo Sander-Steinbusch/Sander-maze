@@ -1,4 +1,6 @@
-from flask import request, Flask, render_template, Response
+import os
+
+from flask import request, Flask, render_template, Response, jsonify
 from document_analyzer.analyzers.offerte import parse_offerte_file
 from document_analyzer.analyzers.document import parse_extraction_prompt, parse_enrich_abbr, parse_enrich_sum, \
     parse_enrich_chapter
@@ -9,9 +11,18 @@ from document_analyzer.tools.custom.model import init_custom_ocr_tool
 from werkzeug.exceptions import HTTPException
 
 api = Flask(__name__, template_folder='templates')
+VALID_API_KEY = os.getenv('API_KEY')
 
+def api_key_required(f):
+    def decorated(*args, **kwargs):
+        api_key = request.headers.get('x-api-key')
+        if not api_key or api_key != VALID_API_KEY:
+            return jsonify({'message': 'Invalid or missing API key!'}), 403
+        return f(*args, **kwargs)
+    return decorated
 
 @api.route("/analyze", methods=["POST"])
+@api_key_required
 def analyze():
     if request.files["file"].filename == '':
         raise HTTPException('no documents added', Response("no file uploaded", status=400))
@@ -25,6 +36,7 @@ def analyze():
 
 
 @api.route("/analyze_new", methods=["POST"])
+@api_key_required
 def prompt():
     if request.files["file"].filename == '':
         raise HTTPException('no documents added', Response("no file uploaded", status=400))
@@ -45,5 +57,6 @@ def index():
 
 
 @api.route("/hoofdstuk", methods=["GET"])
+@api_key_required
 def hoofdstukken():
     return render_template("hoofdstukken.html")
