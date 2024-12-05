@@ -8,7 +8,6 @@ on:
   push:
     branches:
       - main
-      - add-security
   workflow_dispatch:
 
 jobs:
