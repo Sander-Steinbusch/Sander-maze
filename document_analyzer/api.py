@@ -52,6 +52,7 @@ def prompt():
 
 
 @api.route("/", methods=["GET"])
+@api_key_required
 def index():
     return render_template("index.html")
 
