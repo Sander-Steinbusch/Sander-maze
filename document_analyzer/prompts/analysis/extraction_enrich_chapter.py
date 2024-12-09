@@ -435,6 +435,7 @@ def build_extraction_enrich_chapter_prompt(document: str) -> list[SystemMessage 
         "If the information inside the object is not sufficient enough, cross reference the item description with the author inside the basis array."
         "add your answer to the chapter element of each object."
         "If you don't know the answer, don't add anything"
+        "leave out the JSON markdown and answer in one JSON object"
     )
 
     return [
