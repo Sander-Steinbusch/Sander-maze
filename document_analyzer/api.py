@@ -21,7 +21,7 @@ def api_key_required(f):
         return f(*args, **kwargs)
     return decorated
 
-@api.route("/analyze", methods=["POST"])
+@api.route("/analyze", methods=["POST"], endpoint="analyze")
 @api_key_required
 def analyze():
     if request.files["file"].filename == '':
@@ -35,7 +35,7 @@ def analyze():
     return build_json_response(result_dict)
 
 
-@api.route("/analyze_new", methods=["POST"])
+@api.route("/analyze_new", methods=["POST"], endpoint="analyze_new")
 @api_key_required
 def prompt():
     if request.files["file"].filename == '':
@@ -51,7 +51,7 @@ def prompt():
     return result_extraction_enrich_chapter.content
 
 
-@api.route("/analyze_doc", methods=["POST"])
+@api.route("/analyze_doc", methods=["POST"], endpoint="analyze_doc")
 @api_key_required
 def doc():
     if request.files["file"].filename == '':
@@ -67,13 +67,13 @@ def doc():
     return result_extraction_enrich_chapter.content
 
 
-@api.route("/", methods=["GET"])
+@api.route("/", methods=["GET"], endpoint="index")
 @api_key_required
 def index():
     return render_template("index.html")
 
 
-@api.route("/hoofdstuk", methods=["GET"])
+@api.route("/hoofdstuk", methods=["GET"], endpoint="hoofdstuk")
 @api_key_required
 def hoofdstukken():
     return render_template("hoofdstukken.html")
