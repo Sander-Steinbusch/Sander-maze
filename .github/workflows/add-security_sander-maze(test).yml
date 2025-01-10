@@ -7,7 +7,7 @@ name: Build and deploy Python app to Azure Web App - sander-maze
 on:
   push:
     branches:
-      - add-security
+      - dev
   workflow_dispatch:
 
 jobs:
