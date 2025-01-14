@@ -1,9 +1,8 @@
 import os
 
 from flask import request, Flask, render_template, Response, jsonify
-from document_analyzer.analyzers.offerte import parse_offerte_file
-from document_analyzer.analyzers.document import parse_extraction_prompt, parse_enrich_abbr, parse_enrich_sum, \
-    parse_enrich_chapter
+from document_analyzer.analyzers.document import parse_extraction_prompt, parse_enrich_abbreviation, parse_enrich_sum, \
+    parse_enrich_chapter, parse_document_main_file
 from document_analyzer.chat_models.azure import init_azure_chat
 from document_analyzer.responses.json_response import build_json_response
 from document_analyzer.persistence.file_storage import Document
@@ -30,7 +29,7 @@ def analyze():
         ocr = init_custom_ocr_tool()
         model = init_azure_chat()
 
-        result_dict = parse_offerte_file(document.filename, model, ocr)
+        result_dict = parse_document_main_file(document.filename, model, ocr)
 
     return build_json_response(result_dict)
 
@@ -45,7 +44,7 @@ def prompt():
         chat_model = init_azure_chat()
 
         result_extraction = parse_extraction_prompt(document.filename, chat_model, ocr)
-        result_extraction_enrich_abbr = parse_enrich_abbr(result_extraction.content, chat_model)
+        result_extraction_enrich_abbr = parse_enrich_abbreviation(result_extraction.content, chat_model)
         result_extraction_enrich_sum = parse_enrich_sum(result_extraction_enrich_abbr.content, chat_model)
         result_extraction_enrich_chapter = parse_enrich_chapter(result_extraction_enrich_sum.content, chat_model)
     return result_extraction_enrich_chapter.content
@@ -61,7 +60,7 @@ def doc():
         chat_model = init_azure_chat()
 
         result_extraction = parse_extraction_prompt(document.filename, chat_model, ocr)
-        result_extraction_enrich_abbr = parse_enrich_abbr(result_extraction.content, chat_model)
+        result_extraction_enrich_abbr = parse_enrich_abbreviation(result_extraction.content, chat_model)
         result_extraction_enrich_sum = parse_enrich_sum(result_extraction_enrich_abbr.content, chat_model)
         result_extraction_enrich_chapter = parse_enrich_chapter(result_extraction_enrich_sum.content, chat_model)
     return result_extraction_enrich_chapter.content
@@ -75,5 +74,5 @@ def index():
 
 @api.route("/hoofdstuk", methods=["GET"], endpoint="hoofdstuk")
 @api_key_required
-def hoofdstukken():
-    return render_template("hoofdstukken.html")
+def get_chapters():
+    return render_template("chapters.html")

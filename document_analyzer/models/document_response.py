@@ -7,7 +7,7 @@ from document_analyzer.models import (
     descriptions,
 )
 
-class Offerte(BaseModel):
+class Document(BaseModel):
     basis: List[BasisInfo] = Field(
         description=descriptions.basis
     )
