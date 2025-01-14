@@ -3,7 +3,7 @@ import os
 from flask import request, Flask, render_template, Response, jsonify
 from document_analyzer.analyzers.document import parse_extraction_prompt, parse_enrich_abbreviation, parse_enrich_sum, \
     parse_enrich_chapter, parse_document_main_file
-from document_analyzer.chat_models.azure import init_azure_chat
+from document_analyzer.chat_models.azure_chat import init_azure_chat
 from document_analyzer.responses.json_response import build_json_response
 from document_analyzer.persistence.file_storage import Document
 from document_analyzer.tools.custom.model import init_custom_ocr_tool
