@@ -33,23 +33,6 @@ def analyze():
 
     return build_json_response(result_dict)
 
-
-@api.route("/analyze_new", methods=["POST"], endpoint="analyze_new")
-@api_key_required
-def prompt():
-    if request.files["file"].filename == '':
-        raise HTTPException('no documents added', Response("no file uploaded", status=400))
-    with Document(request.files["file"]) as document:
-        ocr = init_custom_ocr_tool()
-        chat_model = init_azure_chat()
-
-        result_extraction = parse_extraction_prompt(document.filename, chat_model, ocr)
-        result_extraction_enrich_abbr = parse_enrich_abbreviation(result_extraction.content, chat_model)
-        result_extraction_enrich_sum = parse_enrich_sum(result_extraction_enrich_abbr.content, chat_model)
-        result_extraction_enrich_chapter = parse_enrich_chapter(result_extraction_enrich_sum.content, chat_model)
-    return result_extraction_enrich_chapter.content
-
-
 @api.route("/analyze_doc", methods=["POST"], endpoint="analyze_doc")
 @api_key_required
 def doc():

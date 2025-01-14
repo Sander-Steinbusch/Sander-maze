@@ -8,10 +8,10 @@ def init_document_analysis_client():
 
     return DocumentIntelligenceClient(
         endpoint=configuration["cognitive_services_url"],
-        credential=_get_azure_credentials(),
+        credential=get_azure_credentials(),
     )
 
-def _get_azure_credentials():
+def get_azure_credentials():
     key = get_from_env("azure_cogs_key", "AZURE_COGS_KEY")
 
     return AzureKeyCredential(key)
