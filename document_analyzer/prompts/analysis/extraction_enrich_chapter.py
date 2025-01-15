@@ -431,11 +431,11 @@ def build_extraction_enrich_chapter_prompt(document: str) -> list[SystemMessage 
         "3-97 : Kunststofinfiltratiekratten"
         "DIV1 : Diverse 1"
         "\n"
-        "going on the basis of what's inside each object, which of these lines does fit the best."
-        "If the information inside the object is not sufficient enough, cross reference the item description with the author inside the basis array."
-        "add your answer to the chapter element of each object."
+        "going on the basis of what's inside each object, which of these lines does fit the best?"
+        "If the information inside the object is not sufficient enough, cross reference the item description with the author inside the basis object."
+        "Add your answer to the chapter element of each object."
         "If you don't know the answer, don't add anything"
-        "leave out the JSON markdown and answer in one JSON object"
+        "leave out the JSON markdown and answer in one JSON object including all the previous data"
     )
 
     return [

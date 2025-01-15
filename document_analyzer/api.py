@@ -11,7 +11,7 @@ from werkzeug.exceptions import HTTPException
 
 api = Flask(__name__, template_folder='templates')
 VALID_API_KEY = os.getenv('API_KEY')
-
+print(VALID_API_KEY)
 def api_key_required(f):
     def decorated(*args, **kwargs):
         api_key = request.headers.get('x-api-key')
