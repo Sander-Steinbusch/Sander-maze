@@ -9,4 +9,4 @@ repos:
     hooks:
     -   id: flake8
         additional_dependencies:
-            - flake8-bugbear==23.9.16
+            - flake8-bugbear==23.9.16python

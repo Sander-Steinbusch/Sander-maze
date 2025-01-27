@@ -1,9 +1,9 @@
 from document_analyzer.configuration import get_configuration
 from langchain.utils.env import get_from_env
 from azure.core.credentials import AzureKeyCredential
-from azure.ai.documentintelligence import DocumentIntelligenceClient
+from azure.ai.documentintelligence.aio import DocumentIntelligenceClient
 
-def init_document_analysis_client():
+async def init_document_analysis_client():
     configuration = get_configuration("azure")
 
     return DocumentIntelligenceClient(
