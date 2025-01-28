@@ -1,7 +1,7 @@
 from typing import Type
 from langchain.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
-from langchain.pydantic_v1 import BaseModel
+from pydantic import BaseModel
 from langchain_core.runnables import RunnableLambda, Runnable
 from langchain_core.prompt_values import PromptValue
 
