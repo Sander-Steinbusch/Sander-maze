@@ -136,6 +136,37 @@ def download_result(id):
     else:
         return jsonify({'message': 'ID not found or no result available!'}), 404
 
+@api.route("/delete/<string:id>", methods=["DELETE"], endpoint="delete")
+@api_key_required
+def delete_record(id):
+    if not id:
+        return jsonify({'message': 'Invalid or missing ID!'}), 400
+
+    force_delete = request.args.get('force', default=False, type=bool)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT status FROM DEX_DOCUMENTS WHERE id = ?", (id,))
+    row = cursor.fetchone()
+
+    if not row:
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'ID not found!'}), 404
+
+    status = row[0]
+    if status != 'D' and not force_delete:
+        cursor.close()
+        conn.close()
+        return jsonify({'message': 'Cannot delete record unless status is "D" or force delete is specified!'}), 403
+
+    cursor.execute("DELETE FROM DEX_DOCUMENTS WHERE id = ?", (id,))
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return jsonify({'message': 'Record deleted successfully!'})
+
 @api.route("/", methods=["GET"], endpoint="index")
 @api_key_required
 def index():
