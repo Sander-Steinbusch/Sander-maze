@@ -80,6 +80,7 @@ async def process_document(file, unique_id):
         result_extraction_enrich_chapter = await parse_enrich_chapter(result_extraction_enrich_sum.content, chat_model)
 
         await store_result(unique_id, result_extraction_enrich_chapter.content)
+        await ocr.close()
 
 @api.route("/analyze_doc_job", methods=["POST"], endpoint="analyze_doc_job")
 @api_key_required

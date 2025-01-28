@@ -28,6 +28,8 @@ class CustomTextExtractorTool(Runnable[str, str]):
             result = await poller.result()  # Await the result of the long-running operation
         return result.content
 
+    async def close(self):
+        await self.document_intelligence_client.close()  # Ensure the client session is closed
     # --- Runnable ---
 
     async def invoke(
