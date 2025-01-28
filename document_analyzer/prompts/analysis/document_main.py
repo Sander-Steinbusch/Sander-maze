@@ -1,7 +1,7 @@
 from typing import Type
 from langchain.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
-from langchain.pydantic_v1 import BaseModel
+from pydantic import BaseModel
 from langchain_core.runnables import RunnableLambda, Runnable
 from langchain_core.prompt_values import PromptValue
 
@@ -40,7 +40,7 @@ def build_prompt(data_model: Type[BaseModel]) -> PromptTemplate:
         partial_variables={"output_structure": parser.get_format_instructions()})
 
 
-def build_offerte_prompt(data_model: Type[BaseModel]) -> Runnable[str, PromptValue]:
+def build_document_main_prompt(data_model: Type[BaseModel]) -> Runnable[str, PromptValue]:
     return (
             RunnableLambda(build_prompt_arguments)
             | build_prompt(data_model)

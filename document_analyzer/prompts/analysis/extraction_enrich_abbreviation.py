@@ -1,7 +1,7 @@
 from langchain_core.messages import SystemMessage, HumanMessage
 
 
-def build_extraction_enrich_abbr_prompt(document: str) -> list[SystemMessage | HumanMessage]:
+def build_extraction_enrich_abbreviation_prompt(document: str) -> list[SystemMessage | HumanMessage]:
     template = (
         # persona
         "you will get a text in json format."

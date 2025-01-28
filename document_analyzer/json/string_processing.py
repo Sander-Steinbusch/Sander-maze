@@ -14,5 +14,5 @@ def remove_trailing_commas(text: str) -> str:
     return text
 
 def remove_trailing_commas_from_message(message: AIMessage) -> AIMessage:
-	content = message.content
-	return AIMessage(remove_trailing_commas(content))
+    content = message.content
+    return AIMessage(remove_trailing_commas(content))

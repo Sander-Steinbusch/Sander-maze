@@ -1,7 +1,7 @@
 from langchain_openai.chat_models import AzureChatOpenAI
 from document_analyzer.configuration import get_configuration
 
-def init_azure_chat() -> AzureChatOpenAI:
+async def init_azure_chat() -> AzureChatOpenAI:
     configuration = get_configuration("azure")
 
     return AzureChatOpenAI(

@@ -1,5 +1,5 @@
-from document_analyzer.models.lineitem import LineItem
-from document_analyzer.models.basisInfo import BasisInfo
+from document_analyzer.models.line_item import LineItem
+from document_analyzer.models.basis_info import BasisInfo
 
 __all__ = [
     "LineItem",

@@ -1,4 +1,4 @@
-from langchain.pydantic_v1 import BaseModel, Field
+from pydantic import BaseModel, Field
 from typing import List
 
 from document_analyzer.models import (
@@ -7,7 +7,7 @@ from document_analyzer.models import (
     descriptions,
 )
 
-class Offerte(BaseModel):
+class Document(BaseModel):
     basis: List[BasisInfo] = Field(
         description=descriptions.basis
     )
