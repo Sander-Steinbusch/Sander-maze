@@ -48,8 +48,11 @@ def run_background_task(file_content, file_name, unique_id):
     loop.close()
 
 def create_db_record(unique_id):
+    print("opening connection")
     conn = get_db_connection()
+    print("creating cursor")
     cursor = conn.cursor()
+    print("executing query")
     cursor.execute(
         "insert into DEX_DOCUMENTS (id, status) values (?, ?)",
         (unique_id, 'P')
@@ -85,10 +88,13 @@ async def process_document(file, unique_id):
 @api.route("/analyze_doc_job", methods=["POST"], endpoint="analyze_doc_job")
 @api_key_required
 def analyze_doc_job():
+    print('in analyze doc job')
     if request.files["file"].filename == '':
         raise HTTPException('no documents added', Response("no file uploaded", status=400))
-
+    print("creating id")
     unique_id = str(uuid.uuid4())
+    print(unique_id)
+    print("creating db record")
     create_db_record(unique_id)
 
     # Read file content into memory, because cannot be done in async method
