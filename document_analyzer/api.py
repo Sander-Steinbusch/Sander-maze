@@ -1,5 +1,6 @@
 import asyncio
 import io
+import json
 import os
 import threading
 import uuid
@@ -20,6 +21,7 @@ ODBC_KEY = os.getenv('ODBC_KEY')
 belgian_offset = timedelta(hours=1)
 running_jobs = {}
 
+print('Running')
 
 def api_key_required(f):
     def decorated(*args, **kwargs):
@@ -76,7 +78,7 @@ async def store_result(unique_id, content, stop_timestamp):
     cursor = conn.cursor()
     cursor.execute(
         "UPDATE DEX_DOCUMENTS SET json_result = ?, status = ?, stop_timestamp = ? WHERE id = ?",
-        (content, 'D', unique_id, stop_timestamp)
+        (content, 'D', stop_timestamp, unique_id)
     )
     conn.commit()
     cursor.close()
@@ -100,7 +102,7 @@ async def process_document(file, unique_id):
         result_extraction_enrich_chapter = await parse_enrich_chapter(result_extraction_enrich_sum.content, chat_model)
         running_jobs[unique_id]['progress'] = 100  # Update progress
 
-        stop_timestamp = datetime.now(timezone.utc).astimezone(timezone(belgian_offset))
+        stop_timestamp = datetime.now(timezone.utc).astimezone(timezone(belgian_offset)).strftime('%Y-%m-%d %H:%M:%S')
 
         await store_result(unique_id, result_extraction_enrich_chapter.content, stop_timestamp)
         await ocr.close()
@@ -111,8 +113,10 @@ async def process_document(file, unique_id):
 def analyze_doc_job():
     if request.files["file"].filename == '':
         raise HTTPException('no documents added', Response("no file uploaded", status=400))
+
     unique_id = str(uuid.uuid4())
-    start_timestamp = datetime.now(timezone.utc).astimezone(timezone(belgian_offset))
+    start_timestamp = datetime.now(timezone.utc).astimezone(timezone(belgian_offset)).strftime('%Y-%m-%d %H:%M:%S')
+
     create_db_record(unique_id, start_timestamp)
 
     # Read file content into memory, because cannot be done in async method
@@ -150,14 +154,29 @@ def download_result(id):
 
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT json_result FROM DEX_DOCUMENTS WHERE id = ?", (id,))
+    cursor.execute("SELECT json_result, start_timestamp, stop_timestamp FROM DEX_DOCUMENTS WHERE id = ?", (id,))
     row = cursor.fetchone()
     cursor.close()
     conn.close()
 
     if row and row[0]:
-        response = make_response(row[0])
-        response.headers['Content-Type'] = 'application/json'
+        json_result = row[0]
+        start_timestamp = row[1]
+        stop_timestamp = row[2]
+
+        # Calculate duration
+        if start_timestamp and stop_timestamp:
+            duration = stop_timestamp - start_timestamp
+            duration_seconds = duration.total_seconds()
+        else:
+            duration_seconds = None
+
+        response_data = {
+            'json_result': json.loads(json_result),
+            'duration_seconds': duration_seconds
+        }
+
+        response = jsonify(response_data)
         return response, 200
     else:
         return jsonify({'message': 'ID not found or no result available!'}), 404
