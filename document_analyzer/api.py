@@ -121,7 +121,7 @@ def analyze_doc_job():
 
     # Read file content into memory, because cannot be done in async method
     file_content = request.files["file"].read()
-    file_name = request.files["file"].filename
+    file_name = unique_id + "_" + request.files["file"].filename
     threading.Thread(target=run_background_task, args=(file_content, file_name, unique_id)).start()
 
     return jsonify({'id': unique_id})
