@@ -58,8 +58,3 @@ def parse_document_main(text: str, model: ChatOpenAI) -> dict:
     )
 
     return chain.invoke(text)
-
-
-def parse_document_main_file(filename: str, model: ChatOpenAI, ocr: CustomTextExtractorTool):
-    file_text = ocr.run(filename)
-    return parse_document_main(file_text, model)
