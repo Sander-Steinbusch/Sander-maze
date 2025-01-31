@@ -37,12 +37,12 @@ def api_key_required(f):
 
 @api.errorhandler(HTTPException)
 def handle_http_exception(e):
-    response = e.get_response()
-    response.data = jsonify({
+    response = make_response(jsonify({
         "code": e.code,
         "name": e.name,
         "description": e.description,
-    })
+    }), e.code)
+    response.headers["Content-Length"] = len(response.get_data(as_text=True))
     response.content_type = "application/json"
     return response
 
