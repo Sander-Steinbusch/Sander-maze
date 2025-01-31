@@ -103,6 +103,7 @@ def create_db_record(unique_id, start_timestamp):
 async def store_result(unique_id, content, stop_timestamp):
     conn = None
     try:
+        logger.info("Start store_result")
         stop_timestamp_str = stop_timestamp.strftime('%Y-%m-%d %H:%M:%S')
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -128,17 +129,22 @@ async def process_document(file, unique_id):
             running_jobs[unique_id]['progress'] = 0
 
             result_extraction = await parse_extraction_prompt(document.filename, chat_model, ocr)
+            logger.info("Finished result_extraction")
             running_jobs[unique_id]['progress'] = 25
             result_extraction_enrich_abbr = await parse_enrich_abbreviation(result_extraction.content, chat_model)
+            logger.info("Finished result_extraction_enrich_abbr")
             running_jobs[unique_id]['progress'] = 50
             result_extraction_enrich_sum = await parse_enrich_sum(result_extraction_enrich_abbr.content, chat_model)
+            logger.info("Finished result_extraction_enrich_sum")
             running_jobs[unique_id]['progress'] = 75
             result_extraction_enrich_chapter = await parse_enrich_chapter(result_extraction_enrich_sum.content, chat_model)
+            logger.info("Finished result_extraction_enrich_chapter")
             running_jobs[unique_id]['progress'] = 100
 
             stop_timestamp = datetime.now(timezone.utc).astimezone(timezone(belgian_offset))
 
             await store_result(unique_id, result_extraction_enrich_chapter.content, stop_timestamp)
+            logger.info("Finished store_result")
     except Exception as e:
         logger.error(f"Error processing document: {e}")
         running_jobs[unique_id]['status'] = 'failed'

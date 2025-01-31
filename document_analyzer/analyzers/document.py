@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 async def parse_extraction_prompt(filename: str, chat_model: ChatOpenAI, ocr: CustomTextExtractorTool):
     try:
+        logger.info("Starting parse_extraction_prompt")
         file_text = await ocr.run(filename)
         extraction_prompt = build_extraction_prompt(file_text)
         chat_model.bind(response_format={"type": "json_object"})
@@ -34,6 +35,7 @@ async def parse_extraction_prompt(filename: str, chat_model: ChatOpenAI, ocr: Cu
 
 async def parse_enrich_abbreviation(json: str, chat_model: ChatOpenAI):
     try:
+        logger.info("Starting parse_enrich_abbreviation")
         abbreviation_prompt = build_extraction_enrich_abbreviation_prompt(json)
         result = await asyncio.to_thread(chat_model.invoke, abbreviation_prompt)
         return result
@@ -43,6 +45,7 @@ async def parse_enrich_abbreviation(json: str, chat_model: ChatOpenAI):
 
 async def parse_enrich_sum(json: str, chat_model: ChatOpenAI):
     try:
+        logger.info("Starting parse_enrich_sum")
         sum_prompt = build_extraction_enrich_sum_prompt(json)
         result = await asyncio.to_thread(chat_model.invoke, sum_prompt)
         return result
@@ -52,6 +55,7 @@ async def parse_enrich_sum(json: str, chat_model: ChatOpenAI):
 
 async def parse_enrich_chapter(json: str, chat_model: ChatOpenAI):
     try:
+        logger.info("Starting parse_enrich_chapter")
         chapter_prompt = build_extraction_enrich_chapter_prompt(json)
         result = await asyncio.to_thread(chat_model.invoke, chapter_prompt)
         return result
