@@ -9,5 +9,5 @@ async def init_azure_chat() -> AzureChatOpenAI:
         openai_api_version=configuration["openai_api_version"],
         deployment_name=configuration["deployment_name"],
         temperature=0,
-        model_kwargs={"top_p": 0.1}
+        top_p=0.1
     )
