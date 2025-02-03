@@ -9,8 +9,7 @@ def build_extraction_prompt(document: str) -> list[SystemMessage | HumanMessage]
         "Document Date: The date of the document."
         "Document Number: The reference number of the document."
         "Document Type: The type of document."
-        "Currency: Identify the currency used in the document."
-        "Total Count: Count the total number of line items."
+        "Currency: Identify the currency used in the document."        
         "Line Items: For each line item, extract:"
         "Description: The description of the item."
         "Extra Info: Any additional information( if available)."
@@ -18,9 +17,10 @@ def build_extraction_prompt(document: str) -> list[SystemMessage | HumanMessage]
         "Unit: The unit of measurement."
         "Price: The price per unit."
         "Reduction: percentage of reduction applied( if available)."
-        "Price Reduction: The price after reduction( if available)."
+        "Price minus Reduction: The unit price after reduction( if available)."
         "Delivery: The delivery terms."
         "Chapter: Any chapter information( if available)."
+        "Total Count: Count the total number of line items."
 
         "Format the extracted information as follows:"
 
@@ -38,7 +38,7 @@ def build_extraction_prompt(document: str) -> list[SystemMessage | HumanMessage]
         "\"unit\": \"Unit\","
         "\"price\": \"Price\","
         "\"reduction\": \"Reduction\","
-        "\"priceReduction\": \"Price after Reduction\","
+        "\"priceMinusReduction\": \"Unit price after Reduction\","
         "\"delivery\": \"Delivery Terms\","
         "\"chapter\": \"Chapter Information\"}"
         "// Repeat for each line item"
@@ -47,6 +47,7 @@ def build_extraction_prompt(document: str) -> list[SystemMessage | HumanMessage]
         
         "leave out the JSON markdown and answer in one JSON object"
         "Use the provided text to fill in the details accordingly."
+        "At the end, count the number of line items again and double check the totalCount of line items."
     )
 
     return [
