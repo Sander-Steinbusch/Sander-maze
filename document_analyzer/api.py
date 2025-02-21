@@ -42,6 +42,17 @@ formatter = logging.Formatter('%(message)s')
 db_handler.setFormatter(formatter)
 logger.addHandler(db_handler)
 
+# Check the SLOT_NAME environment variable
+slot_name = os.getenv('SLOT_NAME')
+if slot_name == 'staging':
+    # Enable console logging for the staging slot
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logger.addHandler(console_handler)
+    logger.setLevel(logging.DEBUG)
+else:
+    logger.setLevel(logging.INFO)
+
 print('Running')
 
 def api_key_required(f):
@@ -178,7 +189,6 @@ async def process_document_lite(file, unique_id):
 
             stop_timestamp = datetime.now(timezone.utc).astimezone(timezone(belgian_offset))
 
-            #await store_result(unique_id, result_extraction_enrich_chapter.content, stop_timestamp)
             await store_result(unique_id, result_extraction, stop_timestamp)
             logger.info("Finished store_result")
     except Exception as e:
