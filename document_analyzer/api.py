@@ -44,7 +44,7 @@ logger.addHandler(db_handler)
 
 # Check the SLOT_NAME environment variable
 slot_name = os.getenv('SLOT_NAME')
-if slot_name == 'staging':
+if slot_name == 'DEV':
     # Enable console logging for the staging slot
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
