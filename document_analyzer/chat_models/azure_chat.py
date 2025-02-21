@@ -7,7 +7,5 @@ async def init_azure_chat() -> AzureChatOpenAI:
     return AzureChatOpenAI(
         azure_endpoint=configuration["openai_api_base"],
         openai_api_version=configuration["openai_api_version"],
-        deployment_name=configuration["deployment_name"],
-        temperature=0,
-        top_p=0.1
+        deployment_name=configuration["deployment_name"]
     )

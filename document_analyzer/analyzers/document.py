@@ -15,19 +15,64 @@ from document_analyzer.prompts.analysis.extraction_erich_sum import build_extrac
 from document_analyzer.prompts.analysis.document_main import build_document_main_prompt
 from document_analyzer.tools.custom.model import CustomTextExtractorTool
 
-from document_analyzer.prompts.analysis.extraction import build_extraction_prompt
+from document_analyzer.prompts.analysis.extraction import build_extraction_prompt, build_extraction_prompt_with_schema
 from document_analyzer.prompts.analysis.extraction_enrich_abbreviation import build_extraction_enrich_abbreviation_prompt
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+json_schema = {
+    "title": "Document",
+    "description": "Schema for document details.",
+    "type": "object",
+    "properties": {
+        "basis": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "author": {"type": "string"},
+                    "documentDate": {"type": "string"},
+                    "documentNumber": {"type": "string"},
+                    "documentType": {"type": "string"}
+                },
+                "required": ["author", "documentDate", "documentNumber", "documentType"]
+            }
+        },
+        "currency": {"type": "string"},
+        "totalCount": {"type": "string"},
+        "lineItems": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "description": {"type": "string"},
+                    "extraInfo": {"type": "string"},
+                    "quantity": {"type": "string"},
+                    "unit": {"type": "string"},
+                    "price": {"type": "string"},
+                    "reduction": {"type": "string"},
+                    "priceMinusReduction": {"type": "string"},
+                    "delivery": {"type": "string"},
+                    "chapter": {"type": "string"}
+                },
+                "required": ["description", "quantity", "unit", "price"]
+            }
+        }
+    },
+    "required": ["basis", "currency", "totalCount", "lineItems"]
+}
+
 async def parse_extraction_prompt(filename: str, chat_model: ChatOpenAI, ocr: CustomTextExtractorTool):
     try:
         logger.info("Starting parse_extraction_prompt")
         file_text = await ocr.run(filename)
-        extraction_prompt = build_extraction_prompt(file_text)
-        chat_model.bind(response_format={"type": "json_object"})
-        result = await asyncio.to_thread(chat_model.invoke, extraction_prompt)
+        #extraction_prompt = build_extraction_prompt(file_text)
+        extraction_prompt = build_extraction_prompt_with_schema(file_text)
+        #chat_model.bind(response_format={"type": "json_object"})
+        chat_model_structured = chat_model.with_structured_output(json_schema)
+        #result = await asyncio.to_thread(chat_model.invoke, extraction_prompt)
+        result = await asyncio.to_thread(chat_model_structured.invoke, extraction_prompt)
         return result
     except Exception as e:
         logger.error(f"Error in parse_extraction_prompt: {e}")
