@@ -12,17 +12,35 @@ from document_analyzer.analyzers.document import parse_extraction_prompt, parse_
     parse_enrich_chapter
 from document_analyzer.chat_models.azure_chat import init_azure_chat
 from document_analyzer.persistence.file_storage import Document
+from document_analyzer.tools.DbLoggingHandler import DbLoggingHandler
 from document_analyzer.tools.custom.model import init_custom_ocr_tool
 from werkzeug.exceptions import HTTPException
 from datetime import datetime, timezone, timedelta
 
 api = Flask(__name__, template_folder='templates')
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+
 VALID_API_KEY = os.getenv('API_KEY')
 ODBC_KEY = os.getenv('ODBC_KEY')
 belgian_offset = timedelta(hours=1)
 running_jobs = {}
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+conn_str = (
+    "DRIVER={ODBC Driver 18 for SQL Server};"
+    "Server=tcp:sandermaze.database.windows.net,1433;"
+    "Database=sandermaze;"
+    "Uid=sandermaze_admin;"
+    "Pwd=" + str(ODBC_KEY) + ";"
+    "Encrypt=yes;"
+    "TrustServerCertificate=no;"
+    "Connection Timeout=30;"
+)
+db_handler = DbLoggingHandler(conn_str)
+formatter = logging.Formatter('%(message)s')
+db_handler.setFormatter(formatter)
+logger.addHandler(db_handler)
 
 print('Running')
 
@@ -49,16 +67,7 @@ def handle_http_exception(e):
 
 def get_db_connection():
     try:
-        conn = pyodbc.connect(
-            "DRIVER={ODBC Driver 18 for SQL Server};"
-            "Server=tcp:sandermaze.database.windows.net,1433;"
-            "Database=sandermaze;"
-            "Uid=sandermaze_admin;"
-            "Pwd=" + str(ODBC_KEY) + ";"
-            "Encrypt=yes;"
-            "TrustServerCertificate=no;"
-            "Connection Timeout=30;"
-        )
+        conn = pyodbc.connect(conn_str)
         return conn
     except pyodbc.Error as e:
         logger.error(f"Database connection error: {e}")
@@ -153,6 +162,30 @@ async def process_document(file, unique_id):
         await ocr.close()
 
 
+async def process_document_lite(file, unique_id):
+    try:
+        async with Document(file) as document:
+            running_jobs[unique_id]['progress'] = 0
+
+            ocr = await init_custom_ocr_tool()
+            chat_model = await init_azure_chat()
+            logger.info("Finished ocr")
+            running_jobs[unique_id]['progress'] = 25
+
+            result_extraction = await parse_extraction_prompt(document.filename, chat_model, ocr)
+            logger.info("Finished result_extraction")
+            running_jobs[unique_id]['progress'] = 100
+
+            stop_timestamp = datetime.now(timezone.utc).astimezone(timezone(belgian_offset))
+
+            #await store_result(unique_id, result_extraction_enrich_chapter.content, stop_timestamp)
+            await store_result(unique_id, result_extraction, stop_timestamp)
+            logger.info("Finished store_result")
+    except Exception as e:
+        logger.error(f"Error processing document: {e}")
+        running_jobs[unique_id]['status'] = 'failed'
+    finally:
+        await ocr.close()
 @api.route("/analyze_doc_job", methods=["POST"], endpoint="analyze_doc_job")
 @api_key_required
 def analyze_doc_job():
