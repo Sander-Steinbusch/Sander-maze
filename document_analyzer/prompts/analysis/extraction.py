@@ -1,4 +1,3 @@
-from langchain.chains.summarize.map_reduce_prompt import prompt_template
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompt_values import PromptValue
 from langchain_core.prompts import ChatPromptTemplate
