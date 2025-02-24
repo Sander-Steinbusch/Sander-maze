@@ -25,12 +25,17 @@ def build_extraction_prompt_with_schema(document: str) -> PromptValue:
                    
                    "leave out the JSON markdown and answer in one JSON object"
                    "Use the provided text to fill in the details accordingly."
+                   "Do not fill in the Chapter attribute, this will be done at a later step. Leave it blank for now."
+                   "Make sure 'Price minus Reduction' only uses the unit price, not the total."
+                   "Make sure all units are stored as a symbol. For example: meter should be m."
+                   "All number need to be unformatted, make sure that all decimal signs are dots."
                    "At the end, count the number of line items again and double check the totalCount of line items."
          ),
         ("user", f"Extract the necessary info from the provided document:{document}")
     ])
     return promptTemplate.invoke({"document": document})
 
+#old version, to be deleted
 def build_extraction_prompt(document: str) -> list[SystemMessage | HumanMessage]:
     template = (
         # persona
