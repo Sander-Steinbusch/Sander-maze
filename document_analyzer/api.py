@@ -85,7 +85,7 @@ def get_db_connection():
         raise
 
 
-def run_background_task(file_content, file_name, unique_id):
+def run_background_task(file_content, file_name, unique_id, extract_only):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     # file content needs to be converted to object with name property for Document class (better way?)
@@ -94,7 +94,10 @@ def run_background_task(file_content, file_name, unique_id):
     file.read = lambda: file_content
     running_jobs[unique_id] = {'status': 'running', 'start_timestamp': datetime.now(), 'progress': 0}
     try:
-        loop.run_until_complete(process_document(file, unique_id))
+        if extract_only:
+            loop.run_until_complete(process_document_extract_only(file, unique_id))
+        else:
+            loop.run_until_complete(process_document(file, unique_id))
     except Exception as e:
         logger.error(f"An error occurred during background task: {e}")
         running_jobs[unique_id]['status'] = 'failed'
@@ -151,20 +154,19 @@ async def process_document(file, unique_id):
             result_extraction = await parse_extraction_prompt(document.filename, chat_model, ocr)
             logger.info("Finished result_extraction")
             running_jobs[unique_id]['progress'] = 25
-            #result_extraction_enrich_abbr = await parse_enrich_abbreviation(result_extraction, chat_model)
-            #logger.info("Finished result_extraction_enrich_abbr")
-            #running_jobs[unique_id]['progress'] = 50
-            #result_extraction_enrich_sum = await parse_enrich_sum(result_extraction_enrich_abbr.content, chat_model)
-            #logger.info("Finished result_extraction_enrich_sum")
-            #running_jobs[unique_id]['progress'] = 75
-            #result_extraction_enrich_chapter = await parse_enrich_chapter(result_extraction_enrich_abbr.content, chat_model)
+            result_extraction_enrich_abbr = await parse_enrich_abbreviation(result_extraction, chat_model)
+            logger.info("Finished result_extraction_enrich_abbr")
+            running_jobs[unique_id]['progress'] = 50
+            result_extraction_enrich_sum = await parse_enrich_sum(result_extraction_enrich_abbr.content, chat_model)
+            logger.info("Finished result_extraction_enrich_sum")
+            running_jobs[unique_id]['progress'] = 75
+            result_extraction_enrich_chapter = await parse_enrich_chapter(result_extraction_enrich_sum.content, chat_model)
             logger.info("Finished result_extraction_enrich_chapter")
             running_jobs[unique_id]['progress'] = 100
 
             stop_timestamp = datetime.now(timezone.utc).astimezone(timezone(belgian_offset))
 
-            #await store_result(unique_id, result_extraction_enrich_chapter.content, stop_timestamp)
-            await store_result(unique_id, result_extraction, stop_timestamp)
+            await store_result(unique_id, result_extraction_enrich_chapter.content, stop_timestamp)
             logger.info("Finished store_result")
     except Exception as e:
         logger.error(f"Error processing document: {e}")
@@ -173,7 +175,7 @@ async def process_document(file, unique_id):
         await ocr.close()
 
 
-async def process_document_lite(file, unique_id):
+async def process_document_extract_only(file, unique_id):
     try:
         async with Document(file) as document:
             running_jobs[unique_id]['progress'] = 0
@@ -196,21 +198,26 @@ async def process_document_lite(file, unique_id):
         running_jobs[unique_id]['status'] = 'failed'
     finally:
         await ocr.close()
+
+
 @api.route("/analyze_doc_job", methods=["POST"], endpoint="analyze_doc_job")
 @api_key_required
 def analyze_doc_job():
     try:
         if request.files["file"].filename == '':
             raise HTTPException('No documents added', Response("No file uploaded", status=400))
+
+        extract_only = request.args.get('extract_only', 'false').lower() == 'true'
+
         unique_id = str(uuid.uuid4())
         start_timestamp = datetime.now(timezone.utc).astimezone(timezone(belgian_offset))
         create_db_record(unique_id, start_timestamp)
 
         file_content = request.files["file"].read()
         file_name = request.files["file"].filename
-        threading.Thread(target=run_background_task, args=(file_content, file_name, unique_id)).start()
+        threading.Thread(target=run_background_task, args=(file_content, file_name, unique_id, extract_only)).start()
 
-        return jsonify({'id': unique_id})
+        return jsonify({'id': unique_id, 'extract_only': extract_only})
     except HTTPException as e:
         return jsonify({'message': str(e)}), e.code
     except Exception as e:
