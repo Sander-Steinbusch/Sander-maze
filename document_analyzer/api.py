@@ -84,6 +84,22 @@ def get_db_connection():
         logger.error(f"Database connection error: {e}")
         raise
 
+def update_status(unique_id, status):
+    conn = None
+    try:
+        conn = get_db_connection()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "UPDATE DEX_DOCUMENTS SET status = ? WHERE id = ?",
+                (status, unique_id)
+            )
+            conn.commit()
+    except pyodbc.Error as e:
+        logger.error(f"Error updating status: {e}")
+    finally:
+        if conn:
+            conn.close()
+
 
 def run_background_task(file_content, file_name, unique_id, extract_only):
     loop = asyncio.new_event_loop()
@@ -101,6 +117,7 @@ def run_background_task(file_content, file_name, unique_id, extract_only):
     except Exception as e:
         logger.error(f"An error occurred during background task: {e}")
         running_jobs[unique_id]['status'] = 'failed'
+        update_status(unique_id, 'F')
     finally:
         running_jobs.pop(unique_id, None)
         loop.close()
@@ -118,6 +135,7 @@ def create_db_record(unique_id, start_timestamp):
             conn.commit()
     except pyodbc.Error as e:
         logger.error(f"Error creating DB record: {e}")
+        update_status(unique_id, 'F')
     finally:
         if conn:
             conn.close()
@@ -138,6 +156,7 @@ async def store_result(unique_id, content, stop_timestamp):
         cursor.close()
     except pyodbc.Error as e:
         logger.error(f"Error storing result: {e}")
+        update_status(unique_id, 'F')
     finally:
         if conn:
             conn.close()
@@ -152,25 +171,26 @@ async def process_document(file, unique_id):
             running_jobs[unique_id]['progress'] = 0
 
             result_extraction = await parse_extraction_prompt(document.filename, chat_model, ocr)
-            logger.info("Finished result_extraction")
+            logger.info("Finished result_extraction for " + unique_id)
             running_jobs[unique_id]['progress'] = 25
-            result_extraction_enrich_abbr = await parse_enrich_abbreviation(result_extraction, chat_model)
-            logger.info("Finished result_extraction_enrich_abbr")
+            result_extraction_enrich_abbr = await parse_enrich_abbreviation(json.dumps(result_extraction), chat_model)
+            logger.info("Finished result_extraction_enrich_abbr for " + unique_id)
             running_jobs[unique_id]['progress'] = 50
             result_extraction_enrich_sum = await parse_enrich_sum(result_extraction_enrich_abbr.content, chat_model)
-            logger.info("Finished result_extraction_enrich_sum")
+            logger.info("Finished result_extraction_enrich_sum for " + unique_id)
             running_jobs[unique_id]['progress'] = 75
             result_extraction_enrich_chapter = await parse_enrich_chapter(result_extraction_enrich_sum.content, chat_model)
-            logger.info("Finished result_extraction_enrich_chapter")
+            logger.info("Finished result_extraction_enrich_chapter for " + unique_id)
             running_jobs[unique_id]['progress'] = 100
 
             stop_timestamp = datetime.now(timezone.utc).astimezone(timezone(belgian_offset))
 
             await store_result(unique_id, result_extraction_enrich_chapter.content, stop_timestamp)
-            logger.info("Finished store_result")
+            logger.info("Finished store_result for " + unique_id)
     except Exception as e:
         logger.error(f"Error processing document: {e}")
         running_jobs[unique_id]['status'] = 'failed'
+        update_status(unique_id, 'F')
     finally:
         await ocr.close()
 
@@ -191,11 +211,12 @@ async def process_document_extract_only(file, unique_id):
 
             stop_timestamp = datetime.now(timezone.utc).astimezone(timezone(belgian_offset))
 
-            await store_result(unique_id, result_extraction, stop_timestamp)
+            await store_result(unique_id, json.dumps(result_extraction), stop_timestamp)
             logger.info("Finished store_result")
     except Exception as e:
         logger.error(f"Error processing document: {e}")
         running_jobs[unique_id]['status'] = 'failed'
+        update_status(unique_id, 'F')
     finally:
         await ocr.close()
 

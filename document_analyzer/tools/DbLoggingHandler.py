@@ -14,8 +14,11 @@ class DbLoggingHandler(logging.Handler):
                                    message NVARCHAR(MAX)
                                )''')
         self.conn.commit()
+        self.datefmt = '%Y-%m-%d %H:%M:%S'  # Define the date format
 
     def emit(self, record):
+        record.asctime = self.formatter.formatTime(record, self.datefmt)
+
         if self.formatter:
             record.message = self.format(record)
         self.cursor.execute("INSERT INTO logs (asctime, levelname, message) VALUES (?, ?, ?)",
