@@ -177,16 +177,16 @@ async def process_document(file, unique_id):
 
             running_jobs[unique_id]['progress'] = 0
 
-            result_extraction = await parse_extraction_prompt(document.filename, chat_model, ocr)
+            result_extraction = await asyncio.wait_for(parse_extraction_prompt(document.filename, chat_model, ocr), timeout=1800)  # Added timeout
             logger.info("Finished result_extraction for " + unique_id)
             running_jobs[unique_id]['progress'] = 25
-            result_extraction_enrich_abbr = await parse_enrich_abbreviation(json.dumps(result_extraction), chat_model)
+            result_extraction_enrich_abbr = await asyncio.wait_for(parse_enrich_abbreviation(json.dumps(result_extraction), chat_model), timeout=1800)  # Added timeout
             logger.info("Finished result_extraction_enrich_abbr for " + unique_id)
             running_jobs[unique_id]['progress'] = 50
-            result_extraction_enrich_sum = await parse_enrich_sum(result_extraction_enrich_abbr.content, chat_model)
+            result_extraction_enrich_sum = await asyncio.wait_for(parse_enrich_sum(result_extraction_enrich_abbr.content, chat_model), timeout=1800)  # Added timeout
             logger.info("Finished result_extraction_enrich_sum for " + unique_id)
             running_jobs[unique_id]['progress'] = 75
-            result_extraction_enrich_chapter = await parse_enrich_chapter(result_extraction_enrich_sum.content, chat_model)
+            result_extraction_enrich_chapter = await asyncio.wait_for(parse_enrich_chapter(result_extraction_enrich_sum.content, chat_model), timeout=1800)  # Added timeout
             logger.info("Finished result_extraction_enrich_chapter for " + unique_id)
             running_jobs[unique_id]['progress'] = 100
 
@@ -194,6 +194,10 @@ async def process_document(file, unique_id):
 
             await store_result(unique_id, result_extraction_enrich_chapter.content, stop_timestamp)
             logger.info("Finished store_result for " + unique_id)
+    except asyncio.TimeoutError:
+        logger.error(f"Timeout error processing document for {unique_id}")
+        update_status(unique_id, 'F')
+        running_jobs.pop(unique_id, None)  # Remove from running jobs list
     except Exception as e:
         logger.error(f"Error processing document: {e}")
         running_jobs.pop(unique_id, None)  # Remove from running jobs list
@@ -212,13 +216,17 @@ async def process_document_extract_only(file, unique_id):
             logger.info("Finished ocr for " + unique_id)
             running_jobs[unique_id]['progress'] = 25
 
-            result_extraction = await parse_extraction_prompt(document.filename, chat_model, ocr)
+            result_extraction = asyncio.wait_for(await parse_extraction_prompt(document.filename, chat_model, ocr), timeout=1800) #added timeout
             logger.info("Finished result_extraction " + unique_id)
             running_jobs[unique_id]['progress'] = 100
 
             stop_timestamp = datetime.now(timezone.utc).astimezone(timezone(belgian_offset))
             await store_result(unique_id, result_extraction, stop_timestamp)
             logger.info("Finished store_result " + unique_id)
+    except asyncio.TimeoutError:
+        logger.error(f"Timeout error processing document for {unique_id}")
+        update_status(unique_id, 'F')
+        running_jobs.pop(unique_id, None)  # Remove from running jobs list
     except Exception as e:
         logger.error(f"Error processing document: {e}")
         running_jobs.pop(unique_id, None)  # Remove from running jobs list
