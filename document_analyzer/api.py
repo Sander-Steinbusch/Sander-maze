@@ -116,7 +116,7 @@ def run_background_task(file_content, file_name, unique_id, extract_only):
             loop.run_until_complete(process_document(file, unique_id))
     except Exception as e:
         logger.error(f"An error occurred during background task: {e}")
-        running_jobs[unique_id]['status'] = 'failed'
+        running_jobs.pop(unique_id, None)  # Remove from running jobs list
         update_status(unique_id, 'F')
     finally:
         running_jobs.pop(unique_id, None)
@@ -196,7 +196,7 @@ async def process_document(file, unique_id):
             logger.info("Finished store_result for " + unique_id)
     except Exception as e:
         logger.error(f"Error processing document: {e}")
-        running_jobs[unique_id]['status'] = 'failed'
+        running_jobs.pop(unique_id, None)  # Remove from running jobs list
         update_status(unique_id, 'F')
     finally:
         await ocr.close()
@@ -221,7 +221,7 @@ async def process_document_extract_only(file, unique_id):
             logger.info("Finished store_result " + unique_id)
     except Exception as e:
         logger.error(f"Error processing document: {e}")
-        running_jobs[unique_id]['status'] = 'failed'
+        running_jobs.pop(unique_id, None)  # Remove from running jobs list
         update_status(unique_id, 'F')
     finally:
         await ocr.close()
