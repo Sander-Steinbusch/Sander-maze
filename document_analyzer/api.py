@@ -24,9 +24,6 @@ ODBC_KEY = os.getenv('ODBC_KEY')
 belgian_offset = timedelta(hours=1)
 running_jobs = {}
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 conn_str = (
     "DRIVER={ODBC Driver 18 for SQL Server};"
     "Server=tcp:sandermaze.database.windows.net,1433;"
@@ -37,9 +34,24 @@ conn_str = (
     "TrustServerCertificate=no;"
     "Connection Timeout=60;"
 )
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Create console handler for INFO level messages
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(console_formatter)
+
+# Create database handler for ERROR level messages
 db_handler = DbLoggingHandler(conn_str)
-formatter = logging.Formatter('%(message)s')
-db_handler.setFormatter(formatter)
+db_handler.setLevel(logging.ERROR)
+db_formatter = logging.Formatter('%(message)s')
+db_handler.setFormatter(db_formatter)
+
+# Add handlers to the logger
+logger.addHandler(console_handler)
 logger.addHandler(db_handler)
 
 # Check the SLOT_NAME environment variable
