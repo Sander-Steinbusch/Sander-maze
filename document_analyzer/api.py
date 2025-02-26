@@ -39,10 +39,14 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 # Create console handler for INFO level messages
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-console_handler.setFormatter(console_formatter)
+slot_name = os.getenv('SLOT_NAME')
+if slot_name == 'DEV':
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    console_handler.setFormatter(console_formatter)
+    #Add handler to logger
+    logger.addHandler(console_handler)
 
 # Create database handler for ERROR level messages
 db_handler = DbLoggingHandler(conn_str)
@@ -50,20 +54,8 @@ db_handler.setLevel(logging.ERROR)
 db_formatter = logging.Formatter('%(message)s')
 db_handler.setFormatter(db_formatter)
 
-# Add handlers to the logger
-logger.addHandler(console_handler)
+# Add handler to the logger
 logger.addHandler(db_handler)
-
-# Check the SLOT_NAME environment variable
-slot_name = os.getenv('SLOT_NAME')
-if slot_name == 'DEV':
-    # Enable console logging for the staging slot
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-    logger.addHandler(console_handler)
-    logger.setLevel(logging.DEBUG)
-else:
-    logger.setLevel(logging.INFO)
 
 print('Running')
 
