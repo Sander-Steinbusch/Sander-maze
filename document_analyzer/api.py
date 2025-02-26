@@ -35,7 +35,7 @@ conn_str = (
     "Pwd=" + str(ODBC_KEY) + ";"
     "Encrypt=yes;"
     "TrustServerCertificate=no;"
-    "Connection Timeout=30;"
+    "Connection Timeout=60;"
 )
 db_handler = DbLoggingHandler(conn_str)
 formatter = logging.Formatter('%(message)s')
