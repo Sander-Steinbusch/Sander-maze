@@ -26,14 +26,14 @@ belgian_offset = timedelta(hours=1)
 running_jobs = {}
 
 conn_str = (
-    "DRIVER={ODBC Driver 18 for SQL Server};"
-    "Server=tcp:sandermaze.database.windows.net,1433;"
-    "Database=sandermaze;"
-    "Uid=sandermaze_admin;"
-    "Pwd=" + str(ODBC_KEY) + ";"
-    "Encrypt=yes;"
-    "TrustServerCertificate=no;"
-    "Connection Timeout=60;"
+        "DRIVER={ODBC Driver 18 for SQL Server};"
+        "Server=tcp:sandermaze.database.windows.net,1433;"
+        "Database=sandermaze;"
+        "Uid=sandermaze_admin;"
+        "Pwd=" + str(ODBC_KEY) + ";"
+                                 "Encrypt=yes;"
+                                 "TrustServerCertificate=no;"
+                                 "Connection Timeout=60;"
 )
 
 logger = logging.getLogger(__name__)
@@ -60,6 +60,7 @@ logger.addHandler(db_handler)
 
 print('Running')
 
+
 def api_key_required(f):
     def decorated(*args, **kwargs):
         api_key = request.headers.get('x-api-key')
@@ -68,6 +69,7 @@ def api_key_required(f):
         return f(*args, **kwargs)
 
     return decorated
+
 
 @api.errorhandler(HTTPException)
 def handle_http_exception(e):
@@ -80,9 +82,12 @@ def handle_http_exception(e):
     response.content_type = "application/json"
     return response
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10), retry=retry_if_exception_type(pyodbc.OperationalError))
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10),
+       retry=retry_if_exception_type(pyodbc.OperationalError))
 def execute_db_query(cursor, query, params):
     cursor.execute(query, params)
+
 
 def get_db_connection():
     try:
@@ -91,6 +96,7 @@ def get_db_connection():
     except pyodbc.Error as e:
         logger.error(f"Database connection error: {e}")
         raise
+
 
 def update_status(unique_id, status):
     conn = None
@@ -134,7 +140,7 @@ def create_db_record(unique_id, start_timestamp):
         conn = get_db_connection()
         with conn.cursor() as cursor:
             execute_db_query(cursor, "INSERT INTO DEX_DOCUMENTS (id, status, start_timestamp) VALUES (?, ?, ?)",
-                (unique_id, 'P', start_timestamp))
+                             (unique_id, 'P', start_timestamp))
             conn.commit()
     except pyodbc.Error as e:
         logger.error(f"Error creating DB record: {e}")
@@ -158,8 +164,9 @@ async def store_result(unique_id, content, stop_timestamp):
 
         conn = get_db_connection()
         with conn.cursor() as cursor:
-            execute_db_query(cursor, "UPDATE DEX_DOCUMENTS SET json_result = ?, status = ?, stop_timestamp = CONVERT(DATETIME2, ?, 120) WHERE id = ?",
-            (formatted_content, 'D', stop_timestamp_str, unique_id))
+            execute_db_query(cursor,
+                             "UPDATE DEX_DOCUMENTS SET json_result = ?, status = ?, stop_timestamp = CONVERT(DATETIME2, ?, 120) WHERE id = ?",
+                             (formatted_content, 'D', stop_timestamp_str, unique_id))
             conn.commit()
     except pyodbc.Error as e:
         logger.error(f"Error storing result: {e}")
@@ -168,21 +175,30 @@ async def store_result(unique_id, content, stop_timestamp):
         if conn:
             conn.close()
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10), retry=retry_if_exception_type(Exception))
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10),
+       retry=retry_if_exception_type(Exception))
 async def retry_parse_extraction_prompt(document_filename, chat_model, ocr):
     return await parse_extraction_prompt(document_filename, chat_model, ocr)
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10), retry=retry_if_exception_type(Exception))
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10),
+       retry=retry_if_exception_type(Exception))
 async def retry_parse_enrich_abbreviation(result_extraction, chat_model):
     return await parse_enrich_abbreviation(result_extraction, chat_model)
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10), retry=retry_if_exception_type(Exception))
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10),
+       retry=retry_if_exception_type(Exception))
 async def retry_parse_enrich_sum(result_extraction_enrich_abbr, chat_model):
     return await parse_enrich_sum(result_extraction_enrich_abbr, chat_model)
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10), retry=retry_if_exception_type(Exception))
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10),
+       retry=retry_if_exception_type(Exception))
 async def retry_parse_enrich_chapter(result_extraction_enrich_sum, chat_model):
     return await parse_enrich_chapter(result_extraction_enrich_sum, chat_model)
+
 
 async def process_document(file, unique_id):
     try:
@@ -346,6 +362,7 @@ def download_result(id):
         logger.error(f"Error in check_status: {e}")
         return jsonify({'message': 'Internal server error'}), 500
 
+
 @api.route("/delete/<string:id>", methods=["DELETE"], endpoint="delete")
 @api_key_required
 def delete_record(id):
@@ -400,6 +417,7 @@ def check_progress(id):
     except Exception as e:
         logger.error(f"Error in check_status: {e}")
         return jsonify({'message': 'Internal server error'}), 500
+
 
 @api.route("/active_jobs", methods=["GET"], endpoint="active_jobs")
 @api_key_required

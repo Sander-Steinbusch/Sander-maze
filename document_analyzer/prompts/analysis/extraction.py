@@ -2,6 +2,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompt_values import PromptValue
 from langchain_core.prompts import ChatPromptTemplate
 
+
 def build_extraction_prompt_with_schema(document: str) -> PromptValue:
     promptTemplate = ChatPromptTemplate.from_messages([
         ("system", "You will extract the following info from the provided document:"
@@ -22,7 +23,7 @@ def build_extraction_prompt_with_schema(document: str) -> PromptValue:
                    "Delivery: The delivery terms."
                    "Chapter: Any chapter information( if available)."
                    "Total Count: Count the total number of line items."
-                   
+
                    "leave out the JSON markdown and answer in one JSON object"
                    "Use the provided text to fill in the details accordingly."
                    "Do not fill in the Chapter attribute, this will be done at a later step. Leave it blank for now."
@@ -35,6 +36,7 @@ def build_extraction_prompt_with_schema(document: str) -> PromptValue:
     ])
     return promptTemplate.invoke({"document": document})
 
+
 #old version, to be deleted
 def build_extraction_prompt(document: str) -> list[SystemMessage | HumanMessage]:
     template = (
@@ -44,7 +46,7 @@ def build_extraction_prompt(document: str) -> list[SystemMessage | HumanMessage]
         "Document Date: The date of the document."
         "Document Number: The reference number of the document."
         "Document Type: The type of document."
-        "Currency: Identify the currency used in the document."        
+        "Currency: Identify the currency used in the document."
         "Line Items: For each line item, extract:"
         "Description: The description of the item."
         "Extra Info: Any additional information( if available)."
@@ -79,7 +81,7 @@ def build_extraction_prompt(document: str) -> list[SystemMessage | HumanMessage]
         "// Repeat for each line item"
         "]"
         "}"
-        
+
         "leave out the JSON markdown and answer in one JSON object"
         "Use the provided text to fill in the details accordingly."
         "At the end, count the number of line items again and double check the totalCount of line items."
