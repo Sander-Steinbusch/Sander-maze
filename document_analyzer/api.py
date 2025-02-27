@@ -16,6 +16,7 @@ from document_analyzer.tools.DbLoggingHandler import DbLoggingHandler
 from document_analyzer.tools.custom.model import init_custom_ocr_tool
 from werkzeug.exceptions import HTTPException
 from datetime import datetime, timezone, timedelta
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 api = Flask(__name__, template_folder='templates')
 
@@ -35,7 +36,7 @@ conn_str = (
     "Pwd=" + str(ODBC_KEY) + ";"
     "Encrypt=yes;"
     "TrustServerCertificate=no;"
-    "Connection Timeout=30;"
+    "Connection Timeout=60;"
 )
 db_handler = DbLoggingHandler(conn_str)
 formatter = logging.Formatter('%(message)s')
@@ -75,6 +76,9 @@ def handle_http_exception(e):
     response.content_type = "application/json"
     return response
 
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10), retry=retry_if_exception_type(pyodbc.OperationalError))
+def execute_db_query(cursor, query, params):
+    cursor.execute(query, params)
 
 def get_db_connection():
     try:
@@ -89,10 +93,7 @@ def update_status(unique_id, status):
     try:
         conn = get_db_connection()
         with conn.cursor() as cursor:
-            cursor.execute(
-                "UPDATE DEX_DOCUMENTS SET status = ? WHERE id = ?",
-                (status, unique_id)
-            )
+            execute_db_query(cursor, "UPDATE DEX_DOCUMENTS SET status = ? WHERE id = ?", (status, unique_id))
             conn.commit()
     except pyodbc.Error as e:
         logger.error(f"Error updating status: {e}")
@@ -128,10 +129,8 @@ def create_db_record(unique_id, start_timestamp):
     try:
         conn = get_db_connection()
         with conn.cursor() as cursor:
-            cursor.execute(
-                "INSERT INTO DEX_DOCUMENTS (id, status, start_timestamp) VALUES (?, ?, ?)",
-                (unique_id, 'P', start_timestamp)
-            )
+            execute_db_query(cursor, "INSERT INTO DEX_DOCUMENTS (id, status, start_timestamp) VALUES (?, ?, ?)",
+                (unique_id, 'P', start_timestamp))
             conn.commit()
     except pyodbc.Error as e:
         logger.error(f"Error creating DB record: {e}")
@@ -154,13 +153,10 @@ async def store_result(unique_id, content, stop_timestamp):
         formatted_content = json.dumps(json.loads(content), indent=4)  # Format the JSON with indentation
 
         conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE DEX_DOCUMENTS SET json_result = ?, status = ?, stop_timestamp = CONVERT(DATETIME2, ?, 120) WHERE id = ?",
-            (formatted_content, 'D', stop_timestamp_str, unique_id)
-        )
-        conn.commit()
-        cursor.close()
+        with conn.cursor() as cursor:
+            execute_db_query(cursor, "UPDATE DEX_DOCUMENTS SET json_result = ?, status = ?, stop_timestamp = CONVERT(DATETIME2, ?, 120) WHERE id = ?",
+            (formatted_content, 'D', stop_timestamp_str, unique_id))
+            conn.commit()
     except pyodbc.Error as e:
         logger.error(f"Error storing result: {e}")
         update_status(unique_id, 'F')
@@ -168,6 +164,21 @@ async def store_result(unique_id, content, stop_timestamp):
         if conn:
             conn.close()
 
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10), retry=retry_if_exception_type(Exception))
+async def retry_parse_extraction_prompt(document_filename, chat_model, ocr):
+    return await parse_extraction_prompt(document_filename, chat_model, ocr)
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10), retry=retry_if_exception_type(Exception))
+async def retry_parse_enrich_abbreviation(result_extraction, chat_model):
+    return await parse_enrich_abbreviation(result_extraction, chat_model)
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10), retry=retry_if_exception_type(Exception))
+async def retry_parse_enrich_sum(result_extraction_enrich_abbr, chat_model):
+    return await parse_enrich_sum(result_extraction_enrich_abbr, chat_model)
+
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10), retry=retry_if_exception_type(Exception))
+async def retry_parse_enrich_chapter(result_extraction_enrich_sum, chat_model):
+    return await parse_enrich_chapter(result_extraction_enrich_sum, chat_model)
 
 async def process_document(file, unique_id):
     try:
@@ -177,16 +188,20 @@ async def process_document(file, unique_id):
 
             running_jobs[unique_id]['progress'] = 0
 
-            result_extraction = await asyncio.wait_for(parse_extraction_prompt(document.filename, chat_model, ocr), timeout=1800)  # Added timeout
+            result_extraction = await asyncio.wait_for(
+                retry_parse_extraction_prompt(document.filename, chat_model, ocr), timeout=1800)
             logger.info("Finished result_extraction for " + unique_id)
             running_jobs[unique_id]['progress'] = 25
-            result_extraction_enrich_abbr = await asyncio.wait_for(parse_enrich_abbreviation(json.dumps(result_extraction), chat_model), timeout=1800)  # Added timeout
+            result_extraction_enrich_abbr = await asyncio.wait_for(
+                retry_parse_enrich_abbreviation(json.dumps(result_extraction), chat_model), timeout=1800)
             logger.info("Finished result_extraction_enrich_abbr for " + unique_id)
             running_jobs[unique_id]['progress'] = 50
-            result_extraction_enrich_sum = await asyncio.wait_for(parse_enrich_sum(result_extraction_enrich_abbr.content, chat_model), timeout=1800)  # Added timeout
+            result_extraction_enrich_sum = await asyncio.wait_for(
+                retry_parse_enrich_sum(result_extraction_enrich_abbr.content, chat_model), timeout=1800)
             logger.info("Finished result_extraction_enrich_sum for " + unique_id)
             running_jobs[unique_id]['progress'] = 75
-            result_extraction_enrich_chapter = await asyncio.wait_for(parse_enrich_chapter(result_extraction_enrich_sum.content, chat_model), timeout=1800)  # Added timeout
+            result_extraction_enrich_chapter = await asyncio.wait_for(
+                retry_parse_enrich_chapter(result_extraction_enrich_sum.content, chat_model), timeout=1800)
             logger.info("Finished result_extraction_enrich_chapter for " + unique_id)
             running_jobs[unique_id]['progress'] = 100
 
@@ -216,8 +231,9 @@ async def process_document_extract_only(file, unique_id):
             logger.info("Finished ocr for " + unique_id)
             running_jobs[unique_id]['progress'] = 25
 
-            result_extraction = asyncio.wait_for(await parse_extraction_prompt(document.filename, chat_model, ocr), timeout=1800) #added timeout
-            logger.info("Finished result_extraction " + unique_id)
+            result_extraction = await asyncio.wait_for(
+                retry_parse_extraction_prompt(document.filename, chat_model, ocr), timeout=1800)
+            logger.info("Finished result_extraction for " + unique_id)
             running_jobs[unique_id]['progress'] = 100
 
             stop_timestamp = datetime.now(timezone.utc).astimezone(timezone(belgian_offset))
