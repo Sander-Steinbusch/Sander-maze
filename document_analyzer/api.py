@@ -25,9 +25,6 @@ ODBC_KEY = os.getenv('ODBC_KEY')
 belgian_offset = timedelta(hours=1)
 running_jobs = {}
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 conn_str = (
     "DRIVER={ODBC Driver 18 for SQL Server};"
     "Server=tcp:sandermaze.database.windows.net,1433;"
@@ -38,21 +35,28 @@ conn_str = (
     "TrustServerCertificate=no;"
     "Connection Timeout=60;"
 )
-db_handler = DbLoggingHandler(conn_str)
-formatter = logging.Formatter('%(message)s')
-db_handler.setFormatter(formatter)
-logger.addHandler(db_handler)
 
-# Check the SLOT_NAME environment variable
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+# Create console handler for INFO level messages
 slot_name = os.getenv('SLOT_NAME')
 if slot_name == 'DEV':
-    # Enable console logging for the staging slot
     console_handler = logging.StreamHandler()
-    console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    console_handler.setLevel(logging.INFO)
+    console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    console_handler.setFormatter(console_formatter)
+    #Add handler to logger
     logger.addHandler(console_handler)
-    logger.setLevel(logging.DEBUG)
-else:
-    logger.setLevel(logging.INFO)
+
+# Create database handler for ERROR level messages
+db_handler = DbLoggingHandler(conn_str)
+db_handler.setLevel(logging.ERROR)
+db_formatter = logging.Formatter('%(message)s')
+db_handler.setFormatter(db_formatter)
+
+# Add handler to the logger
+logger.addHandler(db_handler)
 
 print('Running')
 
