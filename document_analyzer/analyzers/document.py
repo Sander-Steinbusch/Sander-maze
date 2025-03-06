@@ -4,6 +4,7 @@ import logging
 from typing import Type, Any
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.runnables import RunnableSerializable, RunnableLambda, RunnableParallel
+from langchain_openai import AzureChatOpenAI
 from langchain_openai.chat_models import ChatOpenAI
 from pydantic import BaseModel
 from document_analyzer.json.string_processing import remove_trailing_commas_from_message
@@ -61,14 +62,17 @@ json_schema = {
     "required": ["basis", "currency", "totalCount", "lineItems"]
 }
 
+params = {
+    "store": True
+}
 
-async def parse_extraction_prompt(filename: str, chat_model: ChatOpenAI, ocr: CustomTextExtractorTool):
+async def parse_extraction_prompt(filename: str, chat_model: AzureChatOpenAI, ocr: CustomTextExtractorTool):
     try:
         logger.info("Starting parse_extraction_prompt")
         file_text = await ocr.run(filename)
         extraction_prompt = build_extraction_prompt_with_schema(file_text)
         chat_model_structured = chat_model.with_structured_output(json_schema)
-        result = await asyncio.to_thread(chat_model_structured.invoke, extraction_prompt)
+        result = await asyncio.to_thread(chat_model_structured.invoke, extraction_prompt, **params)
         return result
     except Exception as e:
         logger.error(f"Error in parse_extraction_prompt: {e}")
@@ -79,7 +83,7 @@ async def parse_enrich_abbreviation(json: str, chat_model: ChatOpenAI):
     try:
         logger.info("Starting parse_enrich_abbreviation")
         abbreviation_prompt = build_extraction_enrich_abbreviation_prompt(json)
-        result = await asyncio.to_thread(chat_model.invoke, abbreviation_prompt)
+        result = await asyncio.to_thread(chat_model.invoke, abbreviation_prompt, **params)
         return result
     except Exception as e:
         logger.error(f"Error in parse_enrich_abbreviation: {e}")
@@ -90,7 +94,7 @@ async def parse_enrich_sum(json: str, chat_model: ChatOpenAI):
     try:
         logger.info("Starting parse_enrich_sum")
         sum_prompt = build_extraction_enrich_sum_prompt(json)
-        result = await asyncio.to_thread(chat_model.invoke, sum_prompt)
+        result = await asyncio.to_thread(chat_model.invoke, sum_prompt, **params)
         return result
     except Exception as e:
         logger.error(f"Error in parse_enrich_sum: {e}")
@@ -101,7 +105,7 @@ async def parse_enrich_chapter(json: str, chat_model: ChatOpenAI):
     try:
         logger.info("Starting parse_enrich_chapter")
         chapter_prompt = build_extraction_enrich_chapter_prompt(json)
-        result = await asyncio.to_thread(chat_model.invoke, chapter_prompt)
+        result = await asyncio.to_thread(chat_model.invoke, chapter_prompt, **params)
         return result
     except Exception as e:
         logger.error(f"Error in parse_enrich_chapter: {e}")
