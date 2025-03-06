@@ -10,7 +10,7 @@ import logging
 from flask import request, Flask, render_template, Response, jsonify, make_response
 from document_analyzer.analyzers.document import parse_extraction_prompt, parse_enrich_abbreviation, parse_enrich_sum, \
     parse_enrich_chapter
-from document_analyzer.chat_models.azure_chat import init_azure_chat
+from document_analyzer.chat_models.azure_chat import init_azure_chat, init_open_ai_client
 from document_analyzer.persistence.file_storage import Document
 from document_analyzer.tools.DbLoggingHandler import DbLoggingHandler
 from document_analyzer.tools.custom.model import init_custom_ocr_tool
@@ -441,4 +441,98 @@ def index():
         return jsonify({'message': str(e)}), e.code
     except Exception as e:
         logger.error(f"Error in check_status: {e}")
+        return jsonify({'message': 'Internal server error'}), 500
+
+
+@api.route("/get_full_completion/<string:id>", methods=["GET"], endpoint="get_full_completion")
+@api_key_required
+def get_full_completion(id):
+    client = init_open_ai_client()
+
+    try:
+        # Retrieve stored prompts
+        prompt = client.chat.completions.messages.list(id)
+        prompt_contents = [item.content for item in prompt.data]
+        prompt_combined = "\n".join(prompt_contents)
+
+        # Retrieve stored completion
+        completion = client.chat.completions.retrieve(id)
+        completion_contents = [choice.message.content for choice in completion.choices]
+
+        # Combine contents with ID
+        combined_contents = []
+        for idx, output_content in enumerate(completion_contents):
+            combined_contents.append({
+                "id": f"{id}-{idx + 1}",
+                "input": prompt_combined,
+                "expected_output": output_content
+            })
+        # Format as JSON Lines
+        jsonl_data = "\n".join([json.dumps(content) for content in combined_contents])
+
+        return jsonl_data, 200, {'Content-type': 'application/json'}
+    except HTTPException as e:
+        return jsonify({'message': str(e)}), e.code
+    except Exception as e:
+        logger.error(f"Error in returning completion message: {e}")
+        return jsonify({'message': 'Internal server error'}), 500
+
+@api.route("/list_full_completions/", methods=["GET"], endpoint="list_full_completions")
+@api_key_required
+def list_full_completions():
+    client = init_open_ai_client()
+
+    try:
+        completion_list = []
+
+        response = client.chat.completions.list()
+        response_ids = [item.id for item in response.data]
+
+        for response_id in response_ids:
+
+            # Retrieve stored prompts
+            prompt = client.chat.completions.messages.list(response_id)
+            prompt_contents = [item.content for item in prompt.data]
+            prompt_combined = "\n".join(prompt_contents)
+
+            # Retrieve stored completion
+            completion = client.chat.completions.retrieve(response_id)
+            completion_contents = [choice.message.content for choice in completion.choices]
+
+            # Combine contents with ID
+            #combined_contents = []
+            for idx, output_content in enumerate(completion_contents):
+                completion_list.append({
+                    "id": f"{response_id}-{idx + 1}",
+                    "input": prompt_combined,
+                    "expected_output": output_content
+                })
+
+
+            #completion_list.append(combined_contents)
+        # Format as JSON Lines
+        jsonl_data = "\n".join([json.dumps(item) for item in completion_list])
+        return jsonl_data, 200, {'Content-type': 'application/json'}
+    except HTTPException as e:
+        return jsonify({'message': str(e)}), e.code
+    except Exception as e:
+        logger.error(f"Error in returning completion message: {e}")
+        return jsonify({'message': 'Internal server error'}), 500
+
+@api.route("/list_completions", methods=["GET"], endpoint="list_completions")
+@api_key_required
+def list_completions():
+    client = init_open_ai_client()
+
+    try:
+        print(id)
+        # Retrieve stored completions
+        response = client.chat.completions.list()
+        response_ids = [item.id for item in response.data]
+        print(response_ids)
+        return response.model_dump_json(include={'data','id'}, indent=4)
+    except HTTPException as e:
+        return jsonify({'message': str(e)}), e.code
+    except Exception as e:
+        logger.error(f"Error in returning completions: {e}")
         return jsonify({'message': 'Internal server error'}), 500
