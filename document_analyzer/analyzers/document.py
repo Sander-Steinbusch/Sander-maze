@@ -1,5 +1,7 @@
 import asyncio
+import json
 import logging
+import math
 
 from typing import Type, Any
 from langchain_core.output_parsers import JsonOutputParser
@@ -13,7 +15,8 @@ from document_analyzer.prompts.analysis.extraction_enrich_chapter import build_e
 from document_analyzer.prompts.analysis.extraction_erich_sum import build_extraction_enrich_sum_prompt
 from document_analyzer.prompts.analysis.document_main import build_document_main_prompt
 from document_analyzer.tools.custom.model import CustomTextExtractorTool
-from document_analyzer.prompts.analysis.extraction import build_extraction_prompt_with_schema
+from document_analyzer.prompts.analysis.extraction import build_extraction_prompt_with_schema, \
+    build_table_chunk_prompt, build_basis_info_prompt
 from document_analyzer.prompts.analysis.extraction_enrich_abbreviation import \
     build_extraction_enrich_abbreviation_prompt
 
@@ -23,6 +26,37 @@ logger = logging.getLogger(__name__)
 json_schema = {
     "title": "Document",
     "description": "Schema for document details.",
+    "type": "object",
+    "properties": {
+        "currency": {"type": "string"},
+        "totalCount": {"type": "number"},
+        "lineItems": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "lineItemNumber": {"type": "number"},
+                    "description": {"type": "string"},
+                    "extraInfo": {"type": "string"},
+                    "quantity": {"type": "number"},
+                    "unit": {"type": "string"},
+                    "price": {"type": "number"},
+                    "reduction": {"type": "string"},
+                    "priceMinusReduction": {"type": "number"},
+                    "delivery": {"type": "string"},
+                    "chapter": {"type": "string"}
+                },
+                "required": ["description", "quantity", "unit", "price"]
+            }
+        }
+    },
+    "required": ["basis", "currency", "totalCount", "lineItems"]
+}
+
+
+basis_information_schema = {
+    "title": "basisInformation",
+    "description": "Schema for document basis information.",
     "type": "object",
     "properties": {
         "basis": {
@@ -38,45 +72,83 @@ json_schema = {
                 "required": ["author", "documentDate", "documentNumber", "documentType"]
             }
         },
-        "currency": {"type": "string"},
-        "totalCount": {"type": "string"},
-        "lineItems": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "description": {"type": "string"},
-                    "extraInfo": {"type": "string"},
-                    "quantity": {"type": "string"},
-                    "unit": {"type": "string"},
-                    "price": {"type": "string"},
-                    "reduction": {"type": "string"},
-                    "priceMinusReduction": {"type": "string"},
-                    "delivery": {"type": "string"},
-                    "chapter": {"type": "string"}
-                },
-                "required": ["description", "quantity", "unit", "price"]
-            }
-        }
     },
-    "required": ["basis", "currency", "totalCount", "lineItems"]
+    "required": ["basis"]
 }
+
 
 params = {
     "store": True
 }
 
-async def parse_extraction_prompt(filename: str, chat_model: AzureChatOpenAI, ocr: CustomTextExtractorTool):
+
+async def parse_table_based_extraction(filename: str, chat_model: AzureChatOpenAI, ocr, chunk_size=25):
     try:
-        logger.info("Starting parse_extraction_prompt")
-        file_text = await ocr.run(filename)
-        extraction_prompt = build_extraction_prompt_with_schema(file_text)
+        logger.info("Running OCR and extracting tables")
+        result = await ocr.analyze_document(filename)
+        table_rows = result["table"]
+        full_text = result["text"]
+        total_items = len(table_rows)
+
+        results = []
+
+        # Step 1: Extract basis information
+        basis_model = chat_model.with_structured_output(basis_information_schema)
+        basis_prompt = build_basis_info_prompt(full_text)
+        basis_result = await asyncio.to_thread(basis_model.invoke,basis_prompt)
+
+        results.append(basis_result)
+
+        # Step 2: Extract lineItems in chunks
         chat_model_structured = chat_model.with_structured_output(json_schema)
-        result = await asyncio.to_thread(chat_model_structured.invoke, extraction_prompt, **params)
-        return result
+
+        total_chunks = math.ceil(total_items / chunk_size)
+        for chunk_number in range(1, total_chunks + 1):
+            logger.info(f"Processing chunk {chunk_number}/{total_chunks}")
+            prompt = build_table_chunk_prompt(table_rows, chunk_number, chunk_size)
+            result = await asyncio.to_thread(chat_model_structured.invoke, prompt)
+            results.append(result)
+
+        return results
+
     except Exception as e:
-        logger.error(f"Error in parse_extraction_prompt: {e}")
+        logger.error(f"Error in parse_table_based_extraction: {e}")
         raise
+
+def merge_extraction_results(results):
+    merged = {
+        "basis": [],
+        "lineItems": [],
+        "currency": None,
+        "totalCount": 0
+    }
+
+    basis_added = False  # Flag to ensure basis is only added once
+
+    for result in results:
+        if not isinstance(result, dict):
+            continue
+
+        # Add basis only from the first valid chunk
+        if not basis_added and "basis" in result:
+            merged["basis"].extend(result["basis"])
+            basis_added = True
+
+        # Merge lineItems
+        merged["lineItems"].extend(result.get("lineItems", []))
+
+        # Set scalar fields if not already set
+        if not merged["currency"] and result.get("currency"):
+            merged["currency"] = result["currency"]
+
+        try:
+            count = result.get("totalCount", 0)
+        except ValueError:
+            count = len(result.get("lineItems", []))
+
+        merged["totalCount"] += count
+
+    return merged
 
 
 async def parse_enrich_abbreviation(json: str, chat_model: ChatOpenAI):
