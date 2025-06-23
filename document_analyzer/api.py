@@ -8,8 +8,8 @@ import pyodbc
 import logging
 
 from flask import request, Flask, render_template, Response, jsonify, make_response
-from document_analyzer.analyzers.document import parse_extraction_prompt, parse_enrich_abbreviation, parse_enrich_sum, \
-    parse_enrich_chapter
+from document_analyzer.analyzers.document import parse_enrich_abbreviation, parse_enrich_sum, \
+    parse_enrich_chapter, merge_extraction_results, parse_table_based_extraction
 from document_analyzer.chat_models.azure_chat import init_azure_chat, init_open_ai_client
 from document_analyzer.persistence.file_storage import Document
 from document_analyzer.tools.DbLoggingHandler import DbLoggingHandler
@@ -160,7 +160,7 @@ async def store_result(unique_id, content, stop_timestamp):
         if isinstance(content, dict):
             content = json.dumps(content)
 
-        formatted_content = json.dumps(json.loads(content), indent=4)  # Format the JSON with indentation
+        formatted_content = json.dumps(json.loads(content), ensure_ascii=False, indent=4)  # Format the JSON with indentation
 
         conn = get_db_connection()
         with conn.cursor() as cursor:
@@ -175,11 +175,10 @@ async def store_result(unique_id, content, stop_timestamp):
         if conn:
             conn.close()
 
-
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10),
        retry=retry_if_exception_type(Exception))
-async def retry_parse_extraction_prompt(document_filename, chat_model, ocr):
-    return await parse_extraction_prompt(document_filename, chat_model, ocr)
+async def retry_parse_table_based_extraction(document_filename, chat_model, ocr):
+    return await parse_table_based_extraction(document_filename, chat_model, ocr, chunk_size=25)
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10),
@@ -208,18 +207,22 @@ async def process_document(file, unique_id):
 
             running_jobs[unique_id]['progress'] = 0
 
-            result_extraction = await asyncio.wait_for(
-                retry_parse_extraction_prompt(document.filename, chat_model, ocr), timeout=1800)
+            result_extraction_chunks = await asyncio.wait_for(
+                retry_parse_table_based_extraction(document.filename, chat_model, ocr), timeout=1800)
+            result_extraction = merge_extraction_results(result_extraction_chunks)
             logger.info("Finished result_extraction for " + unique_id)
             running_jobs[unique_id]['progress'] = 25
+
             result_extraction_enrich_abbr = await asyncio.wait_for(
                 retry_parse_enrich_abbreviation(json.dumps(result_extraction), chat_model), timeout=1800)
             logger.info("Finished result_extraction_enrich_abbr for " + unique_id)
             running_jobs[unique_id]['progress'] = 50
+
             result_extraction_enrich_sum = await asyncio.wait_for(
                 retry_parse_enrich_sum(result_extraction_enrich_abbr.content, chat_model), timeout=1800)
             logger.info("Finished result_extraction_enrich_sum for " + unique_id)
             running_jobs[unique_id]['progress'] = 75
+
             result_extraction_enrich_chapter = await asyncio.wait_for(
                 retry_parse_enrich_chapter(result_extraction_enrich_sum.content, chat_model), timeout=1800)
             logger.info("Finished result_extraction_enrich_chapter for " + unique_id)
@@ -251,8 +254,10 @@ async def process_document_extract_only(file, unique_id):
             logger.info("Finished ocr for " + unique_id)
             running_jobs[unique_id]['progress'] = 25
 
-            result_extraction = await asyncio.wait_for(
-                retry_parse_extraction_prompt(document.filename, chat_model, ocr), timeout=1800)
+            result_extraction_chunks = await asyncio.wait_for(
+                retry_parse_table_based_extraction(document.filename, chat_model, ocr), timeout=1800)
+            result_extraction = merge_extraction_results(result_extraction_chunks)
+            logger.info(result_extraction)
             logger.info("Finished result_extraction for " + unique_id)
             running_jobs[unique_id]['progress'] = 100
 
