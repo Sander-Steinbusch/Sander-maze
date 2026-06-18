@@ -24,30 +24,30 @@ class CustomTextExtractorTool(Runnable[str, str]):
         return analyze_result
 
     async def analyze_document(self, document_path) -> dict:
-    async with aiofiles.open(document_path, "rb") as document:
-        content = await document.read()
-        poller = await self.document_intelligence_client.begin_analyze_document(
-            "prebuilt-layout",                      # model_id is positional in GA
-            body=content,                           # was: analyze_request=content
-            content_type="application/octet-stream",
-        )
-        result = await poller.result()
+        async with aiofiles.open(document_path, "rb") as document:
+            content = await document.read()
+            poller = await self.document_intelligence_client.begin_analyze_document(
+                "prebuilt-layout",                      # model_id is positional in GA
+                body=content,                           # was: analyze_request=content
+                content_type="application/octet-stream",
+            )
+            result = await poller.result()
 
-    # Extract full text
-    full_text = " ".join(line.content for page in result.pages for line in page.lines)
+        # Extract full text
+        full_text = " ".join(line.content for page in result.pages for line in page.lines)
 
-    # Extract table rows
-    table_rows = []
-    for table in (result.tables or []):            # tables is None when the doc has no tables
-        max_row = max(cell.row_index for cell in table.cells)
-        row_map = {i: [] for i in range(max_row + 1)}
-        for cell in table.cells:
-            row_map[cell.row_index].append((cell.column_index, cell.content))
-        for row_index in sorted(row_map.keys()):
-            sorted_row = [content for _, content in sorted(row_map[row_index])]
-            table_rows.append(sorted_row)
+        # Extract table rows
+        table_rows = []
+        for table in (result.tables or []):            # tables is None when the doc has no tables
+            max_row = max(cell.row_index for cell in table.cells)
+            row_map = {i: [] for i in range(max_row + 1)}
+            for cell in table.cells:
+                row_map[cell.row_index].append((cell.column_index, cell.content))
+            for row_index in sorted(row_map.keys()):
+                sorted_row = [content for _, content in sorted(row_map[row_index])]
+                table_rows.append(sorted_row)
 
-    return {"text": full_text, "table": table_rows}
+        return {"text": full_text, "table": table_rows}
 
     async def close(self):
         await self.document_intelligence_client.close()  # Ensure the client session is closed
