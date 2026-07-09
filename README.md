@@ -1,101 +1,119 @@
-# document-analyser
-Python back-end REST API to extract data from uploaded resumes.
+# AIDA – Document Extraction API
 
-Install python 3.11.6: [https://www.python.org/downloads/](https://www.python.org/downloads/release/python-3116/)
-Make sure to use this version (3.11.6), newer versions give conflicts with some of the depencendies.
+A Python back-end REST API that extracts structured pricing data (basis/header
+information and line items) from uploaded invoices and offers (PDFs or images).
 
-Install pip (package manager): [https://pip.pypa.io/en/stable/installation/](https://pip.pypa.io/en/stable/installation/)
+Documents are processed asynchronously: an upload starts a background job, and
+the caller polls for status/progress and downloads the JSON result when it is
+ready. Results are persisted in Azure SQL.
 
-## Setup virtual environment
-Setup the virtual environment for this repository so that on each instance the same libraries are used.
-More info, see [online documentation](https://docs.python.org/3/library/venv.html).
+## How it works
 
-#### Create
-Create the initial required files for a virtual environment.
-run command: `python -m venv .venv`
+Instead of first flattening the document to plain text with OCR, AIDA renders
+each PDF page to an image and passes those images **directly to a vision-capable
+Azure OpenAI model**. This preserves the full visual layout of the
+invoice/offer (tables, columns, alignment), which carries a lot of the context
+that is otherwise lost when the document is reduced to flat text.
 
-#### Activate 
-Activate the virtual environment, this is required for installing libraries or running the application.
-The exact commands differ per OS and terminal, find the correct command to run [here](https://docs.python.org/3/library/venv.html#how-venvs-work).
+Pipeline:
 
-## Pip libraries
-The libraries needed for this project are specified in the [requirements file](\requirements.txt). 
+1. The uploaded file is stored temporarily on disk.
+2. Each page is rendered to a PNG image with [PyMuPDF](https://pymupdf.readthedocs.io/)
+   (image uploads are passed through as-is).
+3. The images are sent to the model, which returns:
+   - **Basis information** (author, document date, document number, document type)
+     via structured output.
+   - **Line items** (description, quantity, unit, price, reduction, delivery,
+     chapter, …), page-chunked to stay within the model's context window and
+     then merged.
+4. For non–extract-only jobs, optional enrichment steps run (abbreviation
+   expansion, summing of identical items, chapter classification).
+5. The merged JSON result is stored in Azure SQL.
 
-### Install or Update
-When first checking out the repository, or when the requirements are changed, these libraries will need to be installed. For this run the command:
-`pip install -r requirements.txt`
+## Requirements
 
-### Edit
-When installing a new library or or changing the version, update the requirements.txt file by running:
-`pip freeze > requirements.txt`
+- Python 3.11+
+- An [ODBC Driver 18 for SQL Server](https://learn.microsoft.com/sql/connect/odbc/download-odbc-driver-for-sql-server)
+  (required by `pyodbc`).
+- An Azure OpenAI resource with a **vision-capable** deployment.
 
-### Pre-commit
+## Setup
 
-Execute `pre-commit install` to install git hooks in your .git/ directory. 
-After installation, two pre-commit hooks will be triggered on each commit:
-- [black](https://black.readthedocs.io/en/stable/): Automatic Code Formatter
-- [flake8](https://flake8.pycqa.org/en/latest/): Style Guide Enforcement
+### Virtual environment
 
-More information is available on their [website](https://pre-commit.com/).
+```bash
+python -m venv .venv
+# Activate it (see the venv docs for your OS/shell), then:
+pip install -r requirements.txt
+```
 
-## Run application
+`requirements.txt` lists only the direct dependencies. To produce a fully pinned
+lock file for a deployment, run `pip freeze > requirements.lock.txt`.
 
-### Development Server
-To run the development server execute the command:
-`python run_server.py -m -v -p 5000`
-The main difference here is that it will not communicate with the azure services.
-This allows for the application to be executed without the necessary environment variables.
+### Configuration
 
-For more info about the command line arguments, run:
-`python run_server.py --help`
+Azure OpenAI settings live in [`configuration.ini`](configuration.ini):
 
-##### DO NOT USE:
-`flask --app document_analyzer/api run`
-Running the application with this command is not compatible with `argparser`. Causing the application to fail when it tries to determine the argument values.
+- `openai_api_base` – Azure OpenAI endpoint.
+- `openai_api_version` – Azure OpenAI API version.
+- `deployment_name` – name of the vision-capable deployment to use.
 
-### Production Server
+### Environment variables
 
-Run `python run_server.py`
+| Variable         | Purpose                                                        |
+| ---------------- | -------------------------------------------------------------- |
+| `OPENAI_API_KEY` | Key for the Azure OpenAI resource.                             |
+| `API_KEY`        | Value expected in the `x-api-key` request header.              |
+| `ODBC_KEY`       | Password for the Azure SQL database connection.                |
+| `SLOT_NAME`      | Set to `DEV` to also log INFO messages to the console.         |
 
-#### Environment variables
-In order to run the application in production mode, some environment variables will need to be set. 
-These being: 
-- `AZURE_COGS_KEY`: The key from the azure cognitive services subscription.
-- `OPENAI_API_KEY`: the key from the azure openai subscription. 
+> Note: Azure Document Intelligence / Cognitive Services is no longer used, so
+> `AZURE_COGS_KEY` is no longer required.
 
-They are necessary for communication with the azure resources.
-Restart might be required for these environment variables to be detected by python.
+## Running
 
-### Docker
+```bash
+python app.py -p 8000
+```
 
-#### Stub
+Arguments:
 
-For a stubbed configured container go to `/docker/stub` and run:
+- `-p`, `--port` – port to listen on (default `8000`).
+- `-v`, `--verbose` – print a startup message.
 
-    docker compose up -d
+The server is served with [waitress](https://docs.pylonsproject.org/projects/waitress/).
 
-#### Azure
+## API
 
-For an azure configured container. Go to `/docker/azure` and apply following setup:
+All endpoints require an `x-api-key` header matching the `API_KEY` environment
+variable.
 
-Create under project root a file named `.azure`, with following content.
-    
-    AZURE_COGS_KEY=
-    OPENAI_API_KEY=
+| Method   | Path                          | Description                                              |
+| -------- | ----------------------------- | ------------------------------------------------------- |
+| `POST`   | `/analyze_doc_job`            | Upload a `file`; starts a job and returns its `id`. Add `?extract_only=true` to skip the enrichment steps. |
+| `GET`    | `/status/<id>`                | Job status (`P`ending, running, `D`one, `F`ailed).      |
+| `GET`    | `/progress/<id>`              | Progress percentage for a running job.                  |
+| `GET`    | `/active_jobs`                | Currently running jobs.                                 |
+| `GET`    | `/download/<id>`              | The JSON result and processing duration.                |
+| `DELETE` | `/delete/<id>`                | Delete a record (only when done, or `?force=true`).     |
+| `GET`    | `/`                           | Simple upload page.                                     |
+| `GET`    | `/get_full_completion/<id>`   | Stored prompt + completion for a completion id (JSONL). |
+| `GET`    | `/list_full_completions/`     | All stored prompts + completions (JSONL).               |
+| `GET`    | `/list_completions`           | List of stored completion ids.                          |
 
-The keys for azure cognitive service (_AZURE_COGS_KEY_) and azure openai api (_OPENAI_API_KEY_) can be requested, contact Technical Product Owner (Martijn Haex) or the DevOps team (Maxim Rudenko, Martijn Haex or Bjorn Monnens).
+Example:
 
-    docker compose up -d
+```bash
+curl -X POST "http://localhost:8000/analyze_doc_job?extract_only=true" \
+  -H "x-api-key: $API_KEY" \
+  -F "file=@invoice.pdf"
+```
 
-## Execute tests
-To run the tests, make sure the virtual environment is activated first. 
-Once activated, run the command:
-`pytest` or `python -m pytest`
-This will discover the tests recursively based on naming conventions.
-For test files this means they have to be prepended with 'test_' or appended with '\_test'.
-For test methods this means they have to be prepended with 'test_'.
+## Code style
 
-### Include coverage
-Run `coverage run -m pytest`.
+Pre-commit hooks run [black](https://black.readthedocs.io/) and
+[flake8](https://flake8.pycqa.org/). Install them with:
 
-For getting a HTML report, run `coverage html`. The report will be available in `htmlcov/index.html`.
+```bash
+pre-commit install
+```

@@ -1,10 +1,8 @@
 on:
   workflow_call:
     secrets:
-      azure-cognitive-service-key:
-        required: true
       openai-api-key:
-        required: true
+        required: false
 
 jobs:
   build:

@@ -9,11 +9,10 @@ import logging
 
 from flask import request, Flask, render_template, Response, jsonify, make_response
 from document_analyzer.analyzers.document import parse_enrich_abbreviation, parse_enrich_sum, \
-    parse_enrich_chapter, merge_extraction_results, parse_table_based_extraction
+    parse_enrich_chapter, merge_extraction_results, parse_visual_extraction
 from document_analyzer.chat_models.azure_chat import init_azure_chat, init_open_ai_client
 from document_analyzer.persistence.file_storage import Document
 from document_analyzer.tools.DbLoggingHandler import DbLoggingHandler
-from document_analyzer.tools.custom.model import init_custom_ocr_tool
 from werkzeug.exceptions import HTTPException
 from datetime import datetime, timezone, timedelta
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
@@ -177,8 +176,8 @@ async def store_result(unique_id, content, stop_timestamp):
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10),
        retry=retry_if_exception_type(Exception))
-async def retry_parse_table_based_extraction(document_filename, chat_model, ocr):
-    return await parse_table_based_extraction(document_filename, chat_model, ocr, chunk_size=25)
+async def retry_parse_visual_extraction(document_filename, chat_model):
+    return await parse_visual_extraction(document_filename, chat_model)
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10),
@@ -202,13 +201,12 @@ async def retry_parse_enrich_chapter(result_extraction_enrich_sum, chat_model):
 async def process_document(file, unique_id):
     try:
         async with Document(file) as document:
-            ocr = await init_custom_ocr_tool()
             chat_model = await init_azure_chat()
 
             running_jobs[unique_id]['progress'] = 0
 
             result_extraction_chunks = await asyncio.wait_for(
-                retry_parse_table_based_extraction(document.filename, chat_model, ocr), timeout=1800)
+                retry_parse_visual_extraction(document.filename, chat_model), timeout=1800)
             result_extraction = merge_extraction_results(result_extraction_chunks)
             logger.info("Finished result_extraction for " + unique_id)
             running_jobs[unique_id]['progress'] = 25
@@ -240,8 +238,6 @@ async def process_document(file, unique_id):
         logger.error(f"Error processing document: {e}")
         running_jobs.pop(unique_id, None)  # Remove from running jobs list
         update_status(unique_id, 'F')
-    finally:
-        await ocr.close()
 
 
 async def process_document_extract_only(file, unique_id):
@@ -249,13 +245,11 @@ async def process_document_extract_only(file, unique_id):
         async with Document(file) as document:
             running_jobs[unique_id]['progress'] = 0
 
-            ocr = await init_custom_ocr_tool()
             chat_model = await init_azure_chat()
-            logger.info("Finished ocr for " + unique_id)
             running_jobs[unique_id]['progress'] = 25
 
             result_extraction_chunks = await asyncio.wait_for(
-                retry_parse_table_based_extraction(document.filename, chat_model, ocr), timeout=1800)
+                retry_parse_visual_extraction(document.filename, chat_model), timeout=1800)
             result_extraction = merge_extraction_results(result_extraction_chunks)
             logger.info(result_extraction)
             logger.info("Finished result_extraction for " + unique_id)
@@ -272,8 +266,6 @@ async def process_document_extract_only(file, unique_id):
         logger.error(f"Error processing document: {e}")
         running_jobs.pop(unique_id, None)  # Remove from running jobs list
         update_status(unique_id, 'F')
-    finally:
-        await ocr.close()
 
 
 @api.route("/analyze_doc_job", methods=["POST"], endpoint="analyze_doc_job")
