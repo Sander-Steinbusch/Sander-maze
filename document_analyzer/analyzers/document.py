@@ -1,27 +1,32 @@
 import asyncio
-import json
 import logging
 import math
 
-from typing import Type, Any
-from langchain_core.output_parsers import JsonOutputParser
-from langchain_core.runnables import RunnableSerializable, RunnableLambda, RunnableParallel
 from langchain_openai import AzureChatOpenAI
 from langchain_openai.chat_models import ChatOpenAI
-from pydantic import BaseModel
-from document_analyzer.json.string_processing import remove_trailing_commas_from_message
-from document_analyzer.models.document_response import Document
-from document_analyzer.prompts.analysis.extraction_enrich_chapter import build_extraction_enrich_chapter_prompt
-from document_analyzer.prompts.analysis.extraction_erich_sum import build_extraction_enrich_sum_prompt
-from document_analyzer.prompts.analysis.document_main import build_document_main_prompt
-from document_analyzer.tools.custom.model import CustomTextExtractorTool
-from document_analyzer.prompts.analysis.extraction import build_extraction_prompt_with_schema, \
-    build_table_chunk_prompt, build_basis_info_prompt
-from document_analyzer.prompts.analysis.extraction_enrich_abbreviation import \
-    build_extraction_enrich_abbreviation_prompt
+
+from document_analyzer.prompts.analysis.extraction import (
+    build_basis_info_prompt,
+    build_line_items_prompt,
+)
+from document_analyzer.prompts.analysis.extraction_enrich_abbreviation import (
+    build_extraction_enrich_abbreviation_prompt,
+)
+from document_analyzer.prompts.analysis.extraction_enrich_chapter import (
+    build_extraction_enrich_chapter_prompt,
+)
+from document_analyzer.prompts.analysis.extraction_erich_sum import (
+    build_extraction_enrich_sum_prompt,
+)
+from document_analyzer.tools.pdf_images import render_document_to_images
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Number of page images sent to the model per line-item extraction call. Chunking
+# by pages keeps large documents within the model's context window while still
+# giving the model the full visual context of each page it reasons over.
+DEFAULT_PAGE_CHUNK_SIZE = 4
 
 json_schema = {
     "title": "Document",
@@ -50,7 +55,7 @@ json_schema = {
             }
         }
     },
-    "required": ["basis", "currency", "totalCount", "lineItems"]
+    "required": ["currency", "totalCount", "lineItems"]
 }
 
 
@@ -82,38 +87,52 @@ params = {
 }
 
 
-async def parse_table_based_extraction(filename: str, chat_model: AzureChatOpenAI, ocr, chunk_size=25):
+async def parse_visual_extraction(
+    filename: str,
+    chat_model: AzureChatOpenAI,
+    page_chunk_size: int = DEFAULT_PAGE_CHUNK_SIZE,
+):
+    """Extract structured data by letting the model reason over the page images.
+
+    The document is rendered to one image per page (preserving the full visual
+    layout of the invoice/offer) and passed directly to the vision-capable model,
+    replacing the previous Document Intelligence OCR-to-flat-text step.
+    """
     try:
-        logger.info("Running OCR and extracting tables")
-        result = await ocr.analyze_document(filename)
-        table_rows = result["table"]
-        full_text = result["text"]
-        total_items = len(table_rows)
+        logger.info("Rendering document to page images: %s", filename)
+        images = await asyncio.to_thread(render_document_to_images, filename)
+
+        if not images:
+            raise ValueError(f"No pages could be rendered from {filename}")
 
         results = []
 
-        # Step 1: Extract basis information
+        # Step 1: Extract basis information from the first page(s).
         basis_model = chat_model.with_structured_output(basis_information_schema)
-        basis_prompt = build_basis_info_prompt(full_text)
-        basis_result = await asyncio.to_thread(basis_model.invoke,basis_prompt)
-
+        basis_prompt = build_basis_info_prompt(images[: min(2, len(images))])
+        basis_result = await asyncio.to_thread(basis_model.invoke, basis_prompt)
         results.append(basis_result)
 
-        # Step 2: Extract lineItems in chunks
-        chat_model_structured = chat_model.with_structured_output(json_schema)
-
-        total_chunks = math.ceil(total_items / chunk_size)
-        for chunk_number in range(1, total_chunks + 1):
-            logger.info(f"Processing chunk {chunk_number}/{total_chunks}")
-            prompt = build_table_chunk_prompt(table_rows, chunk_number, chunk_size)
-            result = await asyncio.to_thread(chat_model_structured.invoke, prompt)
+        # Step 2: Extract line items, chunking by pages to respect context limits.
+        line_item_model = chat_model.with_structured_output(json_schema)
+        total_chunks = math.ceil(len(images) / page_chunk_size)
+        offset = 0
+        for chunk_number in range(total_chunks):
+            start = chunk_number * page_chunk_size
+            chunk_images = images[start:start + page_chunk_size]
+            logger.info(f"Processing page chunk {chunk_number + 1}/{total_chunks}")
+            prompt = build_line_items_prompt(chunk_images, offset)
+            result = await asyncio.to_thread(line_item_model.invoke, prompt)
             results.append(result)
+            if isinstance(result, dict):
+                offset += len(result.get("lineItems", []))
 
         return results
 
     except Exception as e:
-        logger.error(f"Error in parse_table_based_extraction: {e}")
+        logger.error(f"Error in parse_visual_extraction: {e}")
         raise
+
 
 def merge_extraction_results(results):
     merged = {
@@ -181,31 +200,4 @@ async def parse_enrich_chapter(json: str, chat_model: ChatOpenAI):
         return result
     except Exception as e:
         logger.error(f"Error in parse_enrich_chapter: {e}")
-        raise
-
-
-def build_chain(requested_data: Type[BaseModel], model: ChatOpenAI) -> RunnableSerializable[str, Any]:
-    try:
-        return (
-                build_document_main_prompt(data_model=requested_data)
-                | model
-                | RunnableLambda(remove_trailing_commas_from_message)
-                | JsonOutputParser(pydantic_object=requested_data)
-        )
-    except Exception as e:
-        logger.error(f"Error in build_chain: {e}")
-        raise
-
-#not used, evaluate and possibly delete
-def parse_document_main(text: str, model: ChatOpenAI) -> dict:
-    try:
-        chain = (
-                RunnableParallel(
-                    offerte=build_chain(Document, model)
-                )
-                | RunnableLambda(lambda x: x["offerte"])
-        )
-        return chain.invoke(text)
-    except Exception as e:
-        logger.error(f"Error in parse_document_main: {e}")
         raise
