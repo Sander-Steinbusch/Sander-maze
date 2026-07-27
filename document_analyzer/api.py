@@ -111,7 +111,36 @@ def update_status(unique_id, status):
             conn.close()
 
 
-def run_background_task(file_content, file_name, unique_id, extract_only):
+DEFAULT_OPTIONS = {
+    "page_chunk_size": 4,
+    "text_layer": "off",
+    "debug": False,
+}
+
+
+def parse_options(args):
+    """Parse run options from the query string, falling back to the defaults
+    (i.e. today's behaviour) on any invalid value instead of raising."""
+    options = dict(DEFAULT_OPTIONS)
+
+    try:
+        page_chunk_size = int(args.get("page_chunk_size", DEFAULT_OPTIONS["page_chunk_size"]))
+        if 1 <= page_chunk_size <= 10:
+            options["page_chunk_size"] = page_chunk_size
+    except (TypeError, ValueError):
+        pass
+
+    text_layer = str(args.get("text_layer", DEFAULT_OPTIONS["text_layer"])).lower()
+    if text_layer in ("off", "auto"):
+        options["text_layer"] = text_layer
+
+    options["debug"] = str(args.get("debug", "false")).lower() == "true"
+
+    return options
+
+
+def run_background_task(file_content, file_name, unique_id, extract_only, options=None):
+    options = options or dict(DEFAULT_OPTIONS)
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     # file content needs to be converted to object with name property for Document class (better way?)
@@ -121,9 +150,9 @@ def run_background_task(file_content, file_name, unique_id, extract_only):
     running_jobs[unique_id] = {'status': 'running', 'start_timestamp': datetime.now(), 'progress': 0}
     try:
         if extract_only:
-            loop.run_until_complete(process_document_extract_only(file, unique_id))
+            loop.run_until_complete(process_document_extract_only(file, unique_id, options))
         else:
-            loop.run_until_complete(process_document(file, unique_id))
+            loop.run_until_complete(process_document(file, unique_id, options))
     except Exception as e:
         logger.error(f"An error occurred during background task: {e}")
         running_jobs.pop(unique_id, None)  # Remove from running jobs list
@@ -174,10 +203,23 @@ async def store_result(unique_id, content, stop_timestamp):
         if conn:
             conn.close()
 
+def _attach_diagnostics(content, diagnostics):
+    """Attach a `_diagnostics` block to a JSON result string. Returns a dict when
+    the content parses as JSON, otherwise the original content unchanged."""
+    try:
+        content_obj = json.loads(content) if isinstance(content, str) else content
+        if isinstance(content_obj, dict):
+            content_obj["_diagnostics"] = diagnostics
+            return content_obj
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return content
+
+
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10),
        retry=retry_if_exception_type(Exception))
-async def retry_parse_visual_extraction(document_filename, chat_model):
-    return await parse_visual_extraction(document_filename, chat_model)
+async def retry_parse_visual_extraction(document_filename, chat_model, options):
+    return await parse_visual_extraction(document_filename, chat_model, options)
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10),
@@ -186,18 +228,22 @@ async def retry_parse_enrich_chapter(result_extraction, chat_model):
     return await parse_enrich_chapter(result_extraction, chat_model)
 
 
-async def process_document(file, unique_id):
+async def process_document(file, unique_id, options=None):
+    options = options or dict(DEFAULT_OPTIONS)
     try:
         async with Document(file) as document:
             chat_model = await init_azure_chat()
 
             running_jobs[unique_id]['progress'] = 0
 
-            result_extraction_chunks = await asyncio.wait_for(
-                retry_parse_visual_extraction(document.filename, chat_model), timeout=1800)
+            result_extraction_chunks, diagnostics = await asyncio.wait_for(
+                retry_parse_visual_extraction(document.filename, chat_model, options), timeout=1800)
             result_extraction = merge_extraction_results(result_extraction_chunks)
             logger.info("Finished result_extraction for " + unique_id)
             running_jobs[unique_id]['progress'] = 50
+
+            # Never let diagnostics reach the enrichment prompt.
+            result_extraction.pop("_diagnostics", None)
 
             result_extraction_enrich_chapter = await asyncio.wait_for(
                 retry_parse_enrich_chapter(json.dumps(result_extraction), chat_model), timeout=1800)
@@ -206,7 +252,11 @@ async def process_document(file, unique_id):
 
             stop_timestamp = datetime.now(timezone.utc).astimezone(timezone(belgian_offset))
 
-            await store_result(unique_id, result_extraction_enrich_chapter.content, stop_timestamp)
+            content = result_extraction_enrich_chapter.content
+            if options.get("debug"):
+                content = _attach_diagnostics(content, diagnostics)
+
+            await store_result(unique_id, content, stop_timestamp)
             logger.info("Finished store_result for " + unique_id)
     except asyncio.TimeoutError:
         logger.error(f"Timeout error processing document for {unique_id}")
@@ -218,7 +268,8 @@ async def process_document(file, unique_id):
         update_status(unique_id, 'F')
 
 
-async def process_document_extract_only(file, unique_id):
+async def process_document_extract_only(file, unique_id, options=None):
+    options = options or dict(DEFAULT_OPTIONS)
     try:
         async with Document(file) as document:
             running_jobs[unique_id]['progress'] = 0
@@ -226,12 +277,15 @@ async def process_document_extract_only(file, unique_id):
             chat_model = await init_azure_chat()
             running_jobs[unique_id]['progress'] = 25
 
-            result_extraction_chunks = await asyncio.wait_for(
-                retry_parse_visual_extraction(document.filename, chat_model), timeout=1800)
+            result_extraction_chunks, diagnostics = await asyncio.wait_for(
+                retry_parse_visual_extraction(document.filename, chat_model, options), timeout=1800)
             result_extraction = merge_extraction_results(result_extraction_chunks)
             logger.info(result_extraction)
             logger.info("Finished result_extraction for " + unique_id)
             running_jobs[unique_id]['progress'] = 100
+
+            if options.get("debug"):
+                result_extraction["_diagnostics"] = diagnostics
 
             stop_timestamp = datetime.now(timezone.utc).astimezone(timezone(belgian_offset))
             await store_result(unique_id, result_extraction, stop_timestamp)
@@ -254,6 +308,7 @@ def analyze_doc_job():
             raise HTTPException('No documents added', Response("No file uploaded", status=400))
 
         extract_only = request.args.get('extract_only', 'false').lower() == 'true'
+        options = parse_options(request.args)
 
         unique_id = str(uuid.uuid4())
         start_timestamp = datetime.now(timezone.utc).astimezone(timezone(belgian_offset))
@@ -261,9 +316,10 @@ def analyze_doc_job():
 
         file_content = request.files["file"].read()
         file_name = request.files["file"].filename
-        threading.Thread(target=run_background_task, args=(file_content, file_name, unique_id, extract_only)).start()
+        threading.Thread(target=run_background_task,
+                         args=(file_content, file_name, unique_id, extract_only, options)).start()
 
-        return jsonify({'id': unique_id, 'extract_only': extract_only})
+        return jsonify({'id': unique_id, 'extract_only': extract_only, 'options': options})
     except HTTPException as e:
         return jsonify({'message': str(e)}), e.code
     except Exception as e:

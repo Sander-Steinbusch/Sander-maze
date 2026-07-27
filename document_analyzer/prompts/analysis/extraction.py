@@ -49,7 +49,7 @@ def build_basis_info_prompt(images: list[str]) -> list[SystemMessage | HumanMess
 
 
 def build_line_items_prompt(
-    images: list[str], start_index: int = 0
+    images: list[str], start_index: int = 0, page_texts: list[str] | None = None
 ) -> list[SystemMessage | HumanMessage]:
     system = (
         "You are a document analysis assistant. You are given the page images of an "
@@ -69,11 +69,16 @@ def build_line_items_prompt(
         "price line. Every new post or item number starts a new context: "
         "never carry an earlier reference into a later line item, and never "
         "put more than one reference in a single line item.\n"
-        "- Extra Info: the technical specification block that applies to "
-        "this price line (mesh type, coating, wire diameter and similar), "
-        "and the descriptive text of its own post heading. Do not accumulate "
-        "headings across multiple posts: when a new post or item number "
-        "starts, the post-level text resets.\n"
+        "- Section Spec: the technical specification block that governs this "
+        "price line (product type, mesh type, coating, wire diameter and "
+        "similar). It appears as a heading block and stays valid for every "
+        "price line below it, across several posts, until a new "
+        "specification block starts. Repeat it in full on every line item it "
+        "governs.\n"
+        "- Extra Info: only the descriptive text of this line's own post "
+        "heading, e.g. 'Korven 50 cm dik = 500 m³'. This resets at every new "
+        "post or item number. Never put text from another post here, and "
+        "never put the specification block here.\n"
         "- Quantity\n"
         "- Unit: the unit the price applies to (the pricing basis). Derive it "
         "from how the price is written: in '85,55 EUR/stuk', '12,40 €/m³' or "
@@ -87,7 +92,7 @@ def build_line_items_prompt(
         "- Delivery terms\n"
         "- Chapter (leave blank)\n\n"
         "Return a JSON object with:\n"
-        "- lineItems: list of extracted items, each including its reference and the fields listed above\n"
+        "- lineItems: list of extracted items, each including its reference, sectionSpec and the fields listed above\n"
         "- totalCount: number of items extracted\n\n"
         "**Instructions:**\n"
         "- Only extract genuine priced line items; ignore page headers, footers and totals.\n"
@@ -96,9 +101,6 @@ def build_line_items_prompt(
         "totalCount MUST equal it too. Two lines with identical text and an "
         "identical price are still two separate line items: never collapse "
         "them, and never combine their headings into one Extra Info.\n"
-        "- A price line inherits context from the headings above it. Repeat "
-        "that context in Extra Info for every line item under it, including "
-        "technical specification blocks that appear several lines higher.\n"
         "- Always use the literal text only, do not paraphrase.\n"
         "- Never translate the text, use the original language.\n"
         "- Use the full visual layout of the pages to reason about the structure.\n"
@@ -115,15 +117,33 @@ def build_line_items_prompt(
         "respectively. Never a single item that mentions both posts."
     )
 
+    content = [
+        {
+            "type": "text",
+            "text": "Extract all line items from the following page image(s):",
+        },
+        *_image_blocks(images),
+    ]
+
+    if page_texts:
+        content.append(
+            {
+                "type": "text",
+                "text": (
+                    "Below is the verbatim text layer of the same pages, in "
+                    "reading order. Use it to determine HOW MANY price lines "
+                    "there are: every line carrying a price is one line item, "
+                    "even when several such lines are textually identical. Use "
+                    "the page images to determine the structure: which heading "
+                    "and which specification block belongs to which price line. "
+                    "Where the two disagree about the number of price lines, "
+                    "the text layer wins.\n\n"
+                    + "\n\n".join(page_texts)
+                ),
+            }
+        )
+
     return [
         SystemMessage(content=system),
-        HumanMessage(
-            content=[
-                {
-                    "type": "text",
-                    "text": "Extract all line items from the following page image(s):",
-                },
-                *_image_blocks(images),
-            ]
-        ),
+        HumanMessage(content=content),
     ]
