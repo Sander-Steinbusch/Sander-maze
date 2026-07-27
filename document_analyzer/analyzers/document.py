@@ -35,6 +35,7 @@ json_schema = {
                 "properties": {
                     "lineItemNumber": {"type": "number"},
                     "description": {"type": "string"},
+                    "reference": {"type": "string"},
                     "extraInfo": {"type": "string"},
                     "quantity": {"type": "number"},
                     "unit": {"type": "string"},
@@ -66,7 +67,10 @@ basis_information_schema = {
                     "author": {"type": "string"},
                     "documentDate": {"type": "string"},
                     "documentNumber": {"type": "string"},
-                    "documentType": {"type": "string"}
+                    "documentType": {"type": "string"},
+                    "validityPeriod": {"type": "string"},
+                    "paymentTerm": {"type": "string"},
+                    "vat": {"type": "string"}
                 },
                 "required": ["author", "documentDate", "documentNumber", "documentType"]
             }
