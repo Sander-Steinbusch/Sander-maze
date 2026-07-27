@@ -38,6 +38,24 @@ def render_document_to_images(path: str, dpi: int = DEFAULT_DPI) -> list[str]:
     return _render_pdf(path, dpi)
 
 
+def extract_text_layer(filename: str) -> list[str]:
+    """Return the embedded text layer per page, empty string for scanned pages.
+
+    Reads only the text that is already present in the PDF via PyMuPDF; nothing
+    is OCR'd. Scanned pages (and non-PDF image uploads) yield an empty string,
+    which is a valid outcome.
+    """
+    extension = os.path.splitext(filename)[1].lower()
+    if extension in IMAGE_EXTENSIONS:
+        return [""]
+
+    texts: list[str] = []
+    with pymupdf.open(filename) as document:
+        for page in document:
+            texts.append(page.get_text("text"))
+    return texts
+
+
 def _render_pdf(path: str, dpi: int) -> list[str]:
     images: list[str] = []
     with pymupdf.open(path) as document:
