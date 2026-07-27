@@ -8,8 +8,8 @@ import pyodbc
 import logging
 
 from flask import request, Flask, render_template, Response, jsonify, make_response
-from document_analyzer.analyzers.document import parse_enrich_abbreviation, parse_enrich_sum, \
-    parse_enrich_chapter, merge_extraction_results, parse_visual_extraction
+from document_analyzer.analyzers.document import parse_enrich_chapter, \
+    merge_extraction_results, parse_visual_extraction
 from document_analyzer.chat_models.azure_chat import init_azure_chat, init_open_ai_client
 from document_analyzer.persistence.file_storage import Document
 from document_analyzer.tools.DbLoggingHandler import DbLoggingHandler
@@ -182,20 +182,8 @@ async def retry_parse_visual_extraction(document_filename, chat_model):
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10),
        retry=retry_if_exception_type(Exception))
-async def retry_parse_enrich_abbreviation(result_extraction, chat_model):
-    return await parse_enrich_abbreviation(result_extraction, chat_model)
-
-
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10),
-       retry=retry_if_exception_type(Exception))
-async def retry_parse_enrich_sum(result_extraction_enrich_abbr, chat_model):
-    return await parse_enrich_sum(result_extraction_enrich_abbr, chat_model)
-
-
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10),
-       retry=retry_if_exception_type(Exception))
-async def retry_parse_enrich_chapter(result_extraction_enrich_sum, chat_model):
-    return await parse_enrich_chapter(result_extraction_enrich_sum, chat_model)
+async def retry_parse_enrich_chapter(result_extraction, chat_model):
+    return await parse_enrich_chapter(result_extraction, chat_model)
 
 
 async def process_document(file, unique_id):
@@ -209,20 +197,10 @@ async def process_document(file, unique_id):
                 retry_parse_visual_extraction(document.filename, chat_model), timeout=1800)
             result_extraction = merge_extraction_results(result_extraction_chunks)
             logger.info("Finished result_extraction for " + unique_id)
-            running_jobs[unique_id]['progress'] = 25
-
-            result_extraction_enrich_abbr = await asyncio.wait_for(
-                retry_parse_enrich_abbreviation(json.dumps(result_extraction), chat_model), timeout=1800)
-            logger.info("Finished result_extraction_enrich_abbr for " + unique_id)
             running_jobs[unique_id]['progress'] = 50
 
-            result_extraction_enrich_sum = await asyncio.wait_for(
-                retry_parse_enrich_sum(result_extraction_enrich_abbr.content, chat_model), timeout=1800)
-            logger.info("Finished result_extraction_enrich_sum for " + unique_id)
-            running_jobs[unique_id]['progress'] = 75
-
             result_extraction_enrich_chapter = await asyncio.wait_for(
-                retry_parse_enrich_chapter(result_extraction_enrich_sum.content, chat_model), timeout=1800)
+                retry_parse_enrich_chapter(json.dumps(result_extraction), chat_model), timeout=1800)
             logger.info("Finished result_extraction_enrich_chapter for " + unique_id)
             running_jobs[unique_id]['progress'] = 100
 

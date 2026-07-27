@@ -9,14 +9,8 @@ from document_analyzer.prompts.analysis.extraction import (
     build_basis_info_prompt,
     build_line_items_prompt,
 )
-from document_analyzer.prompts.analysis.extraction_enrich_abbreviation import (
-    build_extraction_enrich_abbreviation_prompt,
-)
 from document_analyzer.prompts.analysis.extraction_enrich_chapter import (
     build_extraction_enrich_chapter_prompt,
-)
-from document_analyzer.prompts.analysis.extraction_erich_sum import (
-    build_extraction_enrich_sum_prompt,
 )
 from document_analyzer.tools.pdf_images import render_document_to_images
 
@@ -168,28 +162,6 @@ def merge_extraction_results(results):
         merged["totalCount"] += count
 
     return merged
-
-
-async def parse_enrich_abbreviation(json: str, chat_model: ChatOpenAI):
-    try:
-        logger.info("Starting parse_enrich_abbreviation")
-        abbreviation_prompt = build_extraction_enrich_abbreviation_prompt(json)
-        result = await asyncio.to_thread(chat_model.invoke, abbreviation_prompt, **params)
-        return result
-    except Exception as e:
-        logger.error(f"Error in parse_enrich_abbreviation: {e}")
-        raise
-
-
-async def parse_enrich_sum(json: str, chat_model: ChatOpenAI):
-    try:
-        logger.info("Starting parse_enrich_sum")
-        sum_prompt = build_extraction_enrich_sum_prompt(json)
-        result = await asyncio.to_thread(chat_model.invoke, sum_prompt, **params)
-        return result
-    except Exception as e:
-        logger.error(f"Error in parse_enrich_sum: {e}")
-        raise
 
 
 async def parse_enrich_chapter(json: str, chat_model: ChatOpenAI):
