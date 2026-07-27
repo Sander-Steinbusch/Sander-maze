@@ -73,7 +73,6 @@ def build_line_items_prompt(
         "- Delivery terms\n"
         "- Chapter (leave blank)\n\n"
         "Return a JSON object with:\n"
-        "- currency: the currency used in the document\n"
         "- lineItems: list of extracted items\n"
         "- totalCount: number of items extracted\n\n"
         "**Instructions:**\n"

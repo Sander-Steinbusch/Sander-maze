@@ -27,7 +27,6 @@ json_schema = {
     "description": "Schema for document details.",
     "type": "object",
     "properties": {
-        "currency": {"type": "string"},
         "totalCount": {"type": "number"},
         "lineItems": {
             "type": "array",
@@ -49,7 +48,7 @@ json_schema = {
             }
         }
     },
-    "required": ["currency", "totalCount", "lineItems"]
+    "required": ["totalCount", "lineItems"]
 }
 
 
@@ -58,6 +57,7 @@ basis_information_schema = {
     "description": "Schema for document basis information.",
     "type": "object",
     "properties": {
+        "currency": {"type": "string"},
         "basis": {
             "type": "array",
             "items": {
