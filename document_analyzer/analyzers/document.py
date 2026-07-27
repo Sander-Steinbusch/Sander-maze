@@ -42,6 +42,7 @@ json_schema = {
                     "price": {"type": "number"},
                     "reduction": {"type": "string"},
                     "priceMinusReduction": {"type": "number"},
+                    "delivery": {"type": "string"},
                     "chapter": {"type": "string"}
                 },
                 "required": ["description", "quantity", "unit", "price"]
@@ -67,7 +68,6 @@ basis_information_schema = {
                     "documentDate": {"type": "string"},
                     "documentNumber": {"type": "string"},
                     "documentType": {"type": "string"},
-                    "deliveryTerms": {"type": "string"},
                     "validityPeriod": {"type": "string"},
                     "paymentTerm": {"type": "string"},
                     "vat": {"type": "string"}
