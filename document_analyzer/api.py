@@ -115,7 +115,11 @@ DEFAULT_OPTIONS = {
     "page_chunk_size": 4,
     "text_layer": "off",
     "debug": False,
+    "max_attempts": 3,
 }
+
+# Hard cap so a typo in the URL can't turn into dozens of model calls per chunk.
+MAX_ATTEMPTS_LIMIT = 5
 
 
 def parse_options(args):
@@ -127,6 +131,13 @@ def parse_options(args):
         page_chunk_size = int(args.get("page_chunk_size", DEFAULT_OPTIONS["page_chunk_size"]))
         if 1 <= page_chunk_size <= 10:
             options["page_chunk_size"] = page_chunk_size
+    except (TypeError, ValueError):
+        pass
+
+    try:
+        max_attempts = int(args.get("max_attempts", DEFAULT_OPTIONS["max_attempts"]))
+        if 1 <= max_attempts <= MAX_ATTEMPTS_LIMIT:
+            options["max_attempts"] = max_attempts
     except (TypeError, ValueError):
         pass
 
