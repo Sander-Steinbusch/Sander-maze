@@ -147,6 +147,7 @@ async def parse_visual_extraction(
     options = options or {}
     page_chunk_size = options.get("page_chunk_size", DEFAULT_PAGE_CHUNK_SIZE)
     text_layer_mode = options.get("text_layer", "off")
+    max_attempts_option = options.get("max_attempts", MAX_CHUNK_ATTEMPTS)
 
     try:
         logger.info("Rendering document to page images: %s", filename)
@@ -192,7 +193,7 @@ async def parse_visual_extraction(
             # Only chunks with a real text layer get a reliable price count and
             # therefore a retry; scans run once (no vain triple runs).
             expected_prices = count_price_occurrences(chunk_texts) if _chunk_has_text_layer(chunk_texts) else None
-            max_attempts = MAX_CHUNK_ATTEMPTS if expected_prices is not None else 1
+            max_attempts = max_attempts_option if expected_prices is not None else 1
 
             logger.info(f"Processing page chunk {chunk_number + 1}/{total_chunks}")
             # Build the prompt once: every retry re-runs the SAME chunk with the
@@ -294,6 +295,7 @@ async def parse_visual_extraction(
                 "page_chunk_size": page_chunk_size,
                 "text_layer": text_layer_mode,
                 "debug": options.get("debug", False),
+                "max_attempts": max_attempts_option,
             },
             "text_layer_chars_per_page": text_layer_chars,
             "text_layer_sent": page_texts is not None,
