@@ -115,7 +115,7 @@ DEFAULT_OPTIONS = {
     "page_chunk_size": 4,
     "text_layer": "off",
     "debug": False,
-    "max_attempts": 3,
+    "max_attempts": 5,
 }
 
 # Hard cap so a typo in the URL can't turn into dozens of model calls per chunk.
