@@ -40,6 +40,17 @@ json_schema = {
     "type": "object",
     "properties": {
         "totalCount": {"type": "number"},
+        "sections": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "spec": {"type": "string"}
+                },
+                "required": ["id", "spec"]
+            }
+        },
         "lineItems": {
             "type": "array",
             "items": {
@@ -48,7 +59,7 @@ json_schema = {
                     "lineItemNumber": {"type": "number"},
                     "description": {"type": "string"},
                     "reference": {"type": "string"},
-                    "sectionSpec": {"type": "string"},
+                    "sectionId": {"type": "string"},
                     "extraInfo": {"type": "string"},
                     "quantity": {"type": ["number", "string"]},
                     "unit": {"type": "string"},
@@ -144,10 +155,13 @@ async def parse_visual_extraction(
         results.append(basis_result)
 
         # Step 2: Extract line items, chunking by pages to respect context limits.
-        line_item_model = chat_model.with_structured_output(json_schema)
+        # include_raw exposes finish_reason / token usage so early stops are
+        # visible instead of assumed; the parsed schema result is under "parsed".
+        line_item_model = chat_model.with_structured_output(json_schema, include_raw=True)
         total_chunks = math.ceil(len(images) / page_chunk_size)
         offset = 0
         line_items_per_chunk = []
+        chunk_diagnostics = []
         for chunk_number in range(total_chunks):
             start = chunk_number * page_chunk_size
             chunk_images = images[start:start + page_chunk_size]
@@ -155,11 +169,43 @@ async def parse_visual_extraction(
             chunk_texts = page_texts[start:start + page_chunk_size] if page_texts else None
             logger.info(f"Processing page chunk {chunk_number + 1}/{total_chunks}")
             prompt = build_line_items_prompt(chunk_images, offset, chunk_texts)
-            result = await asyncio.to_thread(line_item_model.invoke, prompt)
-            results.append(result)
-            count = len(result.get("lineItems", [])) if isinstance(result, dict) else 0
+            raw_result = await asyncio.to_thread(line_item_model.invoke, prompt)
+
+            parsed = raw_result.get("parsed") if isinstance(raw_result, dict) else None
+            raw_message = raw_result.get("raw") if isinstance(raw_result, dict) else None
+            parsing_error = raw_result.get("parsing_error") if isinstance(raw_result, dict) else None
+
+            results.append(parsed)
+            count = len(parsed.get("lineItems", [])) if isinstance(parsed, dict) else 0
             line_items_per_chunk.append(count)
             offset += count
+
+            finish_reason = None
+            usage = None
+            if raw_message is not None:
+                finish_reason = (getattr(raw_message, "response_metadata", None) or {}).get("finish_reason")
+                usage = getattr(raw_message, "usage_metadata", None) or None
+
+            if parsing_error:
+                logger.warning(
+                    "Structured-output parsing error on chunk %d for %s: %s",
+                    chunk_number + 1, filename, parsing_error,
+                )
+            logger.info(
+                "Chunk %d finish_reason=%s output_tokens=%s items=%d",
+                chunk_number + 1, finish_reason,
+                (usage or {}).get("output_tokens"), count,
+            )
+
+            chunk_diagnostics.append({
+                "chunk": chunk_number + 1,
+                "finish_reason": finish_reason,
+                "input_tokens": (usage or {}).get("input_tokens"),
+                "output_tokens": (usage or {}).get("output_tokens"),
+                "output_token_details": (usage or {}).get("output_token_details"),
+                "line_items": count,
+                "parsing_error": str(parsing_error) if parsing_error else None,
+            })
 
         # Heuristic count check (only when a text layer was actually sent).
         line_item_count = sum(line_items_per_chunk)
@@ -183,6 +229,7 @@ async def parse_visual_extraction(
             "text_layer_sent": page_texts is not None,
             "num_chunks": total_chunks,
             "line_items_per_chunk": line_items_per_chunk,
+            "chunks": chunk_diagnostics,
             "price_occurrence_count": price_occurrence_count,
             "line_item_count": line_item_count,
         }
@@ -197,12 +244,14 @@ async def parse_visual_extraction(
 def merge_extraction_results(results):
     merged = {
         "basis": [],
+        "sections": [],
         "lineItems": [],
         "currency": None,
         "totalCount": 0
     }
 
     basis_added = False  # Flag to ensure basis is only added once
+    chunk_index = 0
 
     for result in results:
         if not isinstance(result, dict):
@@ -212,11 +261,30 @@ def merge_extraction_results(results):
         if not basis_added and "basis" in result:
             merged["basis"].extend(result["basis"])
             basis_added = True
+            if not merged["currency"] and result.get("currency"):
+                merged["currency"] = result["currency"]
+            continue
 
-        # Merge lineItems
-        merged["lineItems"].extend(result.get("lineItems", []))
+        # Line-item chunk. Each chunk numbers its sections from s1, so prefix
+        # them per chunk (c1-s1, c2-s1, ...) to avoid collisions, and rewrite
+        # the sectionId on this chunk's line items to match. Sections are never
+        # deduplicated on text: an identical block in two chunks stays twice.
+        chunk_index += 1
+        prefix = f"c{chunk_index}-"
+        id_map = {}
+        for section in result.get("sections", []):
+            old_id = section.get("id")
+            new_id = f"{prefix}{old_id}" if old_id is not None else old_id
+            if old_id is not None:
+                id_map[old_id] = new_id
+            merged["sections"].append({**section, "id": new_id})
 
-        # Set scalar fields if not already set
+        for item in result.get("lineItems", []):
+            section_id = item.get("sectionId")
+            if section_id in id_map:
+                item = {**item, "sectionId": id_map[section_id]}
+            merged["lineItems"].append(item)
+
         if not merged["currency"] and result.get("currency"):
             merged["currency"] = result["currency"]
 
