@@ -110,7 +110,7 @@ params = {
 
 # A chunk is only count-checked / retried when its own text layer clears the
 # same threshold as the document level, and it gets at most this many attempts.
-MAX_CHUNK_ATTEMPTS = 3
+MAX_CHUNK_ATTEMPTS = 5
 
 
 def count_price_occurrences(page_texts):
