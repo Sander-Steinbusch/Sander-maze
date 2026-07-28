@@ -108,6 +108,26 @@ params = {
     "store": True
 }
 
+# A chunk is only count-checked / retried when its own text layer clears the
+# same threshold as the document level, and it gets at most this many attempts.
+MAX_CHUNK_ATTEMPTS = 3
+
+
+def count_price_occurrences(page_texts):
+    """Count price occurrences across the given page texts. Used for both the
+    per-chunk count check and the whole-document count check, so the two can
+    never diverge."""
+    return len(PRICE_PATTERN.findall("\n".join(page_texts)))
+
+
+def _chunk_has_text_layer(chunk_texts):
+    """True when this chunk carries a real text layer (same >100 chars/page
+    threshold as the document level), i.e. a reliable price count is available."""
+    if not chunk_texts:
+        return False
+    avg_chars = sum(len(t) for t in chunk_texts) / len(chunk_texts)
+    return avg_chars > MIN_TEXT_LAYER_CHARS_PER_PAGE
+
 
 async def parse_visual_extraction(
     filename: str,
@@ -162,21 +182,64 @@ async def parse_visual_extraction(
         offset = 0
         line_items_per_chunk = []
         chunk_diagnostics = []
+        total_attempts = 0
         for chunk_number in range(total_chunks):
             start = chunk_number * page_chunk_size
             chunk_images = images[start:start + page_chunk_size]
             # Slice the text layer on the same indices so it stays aligned.
             chunk_texts = page_texts[start:start + page_chunk_size] if page_texts else None
+
+            # Only chunks with a real text layer get a reliable price count and
+            # therefore a retry; scans run once (no vain triple runs).
+            expected_prices = count_price_occurrences(chunk_texts) if _chunk_has_text_layer(chunk_texts) else None
+            max_attempts = MAX_CHUNK_ATTEMPTS if expected_prices is not None else 1
+
             logger.info(f"Processing page chunk {chunk_number + 1}/{total_chunks}")
+            # Build the prompt once: every retry re-runs the SAME chunk with the
+            # SAME start_index. offset only advances after a result is accepted.
             prompt = build_line_items_prompt(chunk_images, offset, chunk_texts)
-            raw_result = await asyncio.to_thread(line_item_model.invoke, prompt)
 
-            parsed = raw_result.get("parsed") if isinstance(raw_result, dict) else None
-            raw_message = raw_result.get("raw") if isinstance(raw_result, dict) else None
-            parsing_error = raw_result.get("parsing_error") if isinstance(raw_result, dict) else None
+            items_per_attempt = []
+            best = {"parsed": None, "raw": None, "error": None, "count": -1}
+            accepted = False
+            for attempt in range(max_attempts):
+                total_attempts += 1
+                raw_result = await asyncio.to_thread(line_item_model.invoke, prompt)
+                parsed = raw_result.get("parsed") if isinstance(raw_result, dict) else None
+                raw_message = raw_result.get("raw") if isinstance(raw_result, dict) else None
+                parsing_error = raw_result.get("parsing_error") if isinstance(raw_result, dict) else None
+                count = len(parsed.get("lineItems", [])) if isinstance(parsed, dict) else 0
+                items_per_attempt.append(count)
 
+                if parsing_error:
+                    logger.warning(
+                        "Structured-output parsing error on chunk %d attempt %d for %s: %s",
+                        chunk_number + 1, attempt + 1, filename, parsing_error,
+                    )
+
+                # Keep the attempt with the most line items as the fallback, and
+                # accept immediately on a count match (or when there is no count).
+                if count > best["count"] or (expected_prices is not None and count == expected_prices):
+                    best = {"parsed": parsed, "raw": raw_message, "error": parsing_error, "count": count}
+                if expected_prices is None or count == expected_prices:
+                    accepted = True
+                    break
+
+            chunk_mismatch = expected_prices is not None and not accepted
+            if chunk_mismatch:
+                logger.warning(
+                    "Chunk %d still mismatched after %d attempts for %s: expected %d, best %d",
+                    chunk_number + 1, len(items_per_attempt), filename, expected_prices, best["count"],
+                )
+
+            parsed = best["parsed"]
+            raw_message = best["raw"]
+            parsing_error = best["error"]
+            count = max(best["count"], 0)
+
+            # Only the accepted (or best) attempt is used and advances the offset;
+            # failed attempts never shift the numbering.
             results.append(parsed)
-            count = len(parsed.get("lineItems", [])) if isinstance(parsed, dict) else 0
             line_items_per_chunk.append(count)
             offset += count
 
@@ -186,19 +249,17 @@ async def parse_visual_extraction(
                 finish_reason = (getattr(raw_message, "response_metadata", None) or {}).get("finish_reason")
                 usage = getattr(raw_message, "usage_metadata", None) or None
 
-            if parsing_error:
-                logger.warning(
-                    "Structured-output parsing error on chunk %d for %s: %s",
-                    chunk_number + 1, filename, parsing_error,
-                )
             logger.info(
-                "Chunk %d finish_reason=%s output_tokens=%s items=%d",
-                chunk_number + 1, finish_reason,
+                "Chunk %d accepted after %d attempt(s) finish_reason=%s output_tokens=%s items=%d",
+                chunk_number + 1, len(items_per_attempt), finish_reason,
                 (usage or {}).get("output_tokens"), count,
             )
 
             chunk_diagnostics.append({
                 "chunk": chunk_number + 1,
+                "attempts": len(items_per_attempt),
+                "items_per_attempt": items_per_attempt,
+                "expected_price_lines": expected_prices,
                 "finish_reason": finish_reason,
                 "input_tokens": (usage or {}).get("input_tokens"),
                 "output_tokens": (usage or {}).get("output_tokens"),
@@ -207,17 +268,26 @@ async def parse_visual_extraction(
                 "parsing_error": str(parsing_error) if parsing_error else None,
             })
 
-        # Heuristic count check (only when a text layer was actually sent).
+        # Document-level count check (only when a text layer was actually sent).
+        # A persistent mismatch flags the merged result via a sentinel that
+        # merge_extraction_results turns into needsReview / reviewReason.
         line_item_count = sum(line_items_per_chunk)
         price_occurrence_count = None
         if page_texts:
-            price_occurrence_count = len(PRICE_PATTERN.findall("\n".join(page_texts)))
+            price_occurrence_count = count_price_occurrences(page_texts)
             if price_occurrence_count != line_item_count:
                 logger.warning(
                     "Price-occurrence count (%d) does not match extracted line "
-                    "items (%d) for %s",
+                    "items (%d) for %s after retries",
                     price_occurrence_count, line_item_count, filename,
                 )
+                results.append({"_review": {
+                    "needsReview": True,
+                    "reviewReason": {
+                        "expectedPriceLines": price_occurrence_count,
+                        "extractedLineItems": line_item_count,
+                    },
+                }})
 
         diagnostics = {
             "options": {
@@ -228,6 +298,7 @@ async def parse_visual_extraction(
             "text_layer_chars_per_page": text_layer_chars,
             "text_layer_sent": page_texts is not None,
             "num_chunks": total_chunks,
+            "total_attempts": total_attempts,
             "line_items_per_chunk": line_items_per_chunk,
             "chunks": chunk_diagnostics,
             "price_occurrence_count": price_occurrence_count,
@@ -255,6 +326,15 @@ def merge_extraction_results(results):
 
     for result in results:
         if not isinstance(result, dict):
+            continue
+
+        # Review sentinel: a persistent count mismatch after retries. Surface it
+        # as a real, always-present result field (not stripped like _diagnostics).
+        if "_review" in result:
+            review = result["_review"]
+            if review.get("needsReview"):
+                merged["needsReview"] = True
+                merged["reviewReason"] = review.get("reviewReason")
             continue
 
         # Add basis only from the first valid chunk
